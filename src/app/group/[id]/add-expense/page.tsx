@@ -4,6 +4,7 @@ import { ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import { supabase } from '@/lib/supabase'
 
 interface Participant {
   id: string
@@ -15,43 +16,72 @@ interface Group {
   id: string
   name: string
   participantsList: Participant[]
-  transactions: any[]
-  totalSpent: number
-  balance: number
 }
 
 export default function AddExpense() {
   const params = useParams()
   const router = useRouter()
   const groupId = params.id as string
-  
+
   const [group, setGroup] = useState<Group | null>(null)
   const [amount, setAmount] = useState('')
   const [description, setDescription] = useState('')
   const [payerId, setPayerId] = useState('')
   const [splitType, setSplitType] = useState<'equal' | 'manual'>('equal')
   const [selectedParticipants, setSelectedParticipants] = useState<string[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    // Carregar grupo
-    const savedGroup = localStorage.getItem(`divideai_group_${groupId}`)
-    if (savedGroup) {
-      const parsedGroup = JSON.parse(savedGroup)
-      setGroup(parsedGroup)
-      setPayerId(parsedGroup.participantsList[0]?.id || '')
-      setSelectedParticipants(parsedGroup.participantsList.map((p: Participant) => p.id))
+    const load = async () => {
+      setLoading(true)
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
+      if (!session) {
+        router.replace('/login')
+        return
+      }
+
+      const { data, error } = await supabase
+        .from('groups')
+        .select('id,name,participants')
+        .eq('id', groupId)
+        .single()
+
+      if (error || !data) {
+        console.error('add-expense.group-load-error', error)
+        router.replace(`/group/${groupId}`)
+        return
+      }
+
+      const participantsList: Participant[] = Array.isArray(data.participants) ? data.participants : []
+
+      setGroup({
+        id: data.id,
+        name: data.name,
+        participantsList,
+      })
+
+      setPayerId(participantsList[0]?.id || session.user.id)
+      setSelectedParticipants(participantsList.map((p) => p.id))
+      setLoading(false)
     }
-  }, [groupId])
+
+    load()
+  }, [groupId, router])
 
   const toggleParticipant = (participantId: string) => {
     if (selectedParticipants.includes(participantId)) {
-      setSelectedParticipants(selectedParticipants.filter(id => id !== participantId))
+      setSelectedParticipants(selectedParticipants.filter((id) => id !== participantId))
     } else {
       setSelectedParticipants([...selectedParticipants, participantId])
     }
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!amount || !description || !payerId || selectedParticipants.length === 0) {
       alert('Preencha todos os campos')
       return
@@ -59,63 +89,65 @@ export default function AddExpense() {
 
     const amountValue = parseFloat(amount)
     if (isNaN(amountValue) || amountValue <= 0) {
-      alert('Valor inválido')
+      alert('Valor invalido')
       return
     }
 
     if (!group) return
 
-    // Criar transação
-    const payer = group.participantsList.find(p => p.id === payerId)
-    const newTransaction = {
-      id: Date.now().toString(),
-      description,
-      amount: amountValue,
-      payerId,
-      payerName: payer?.name || 'Desconhecido',
-      date: new Date().toISOString(),
-      participants: selectedParticipants,
+    setSaving(true)
+
+    const participantsForSplit = selectedParticipants.length > 0 ? selectedParticipants : [payerId]
+    const splitAmount = Number((amountValue / participantsForSplit.length).toFixed(2))
+
+    const splits: Record<string, number> = {}
+    for (const pid of participantsForSplit) {
+      splits[pid] = splitAmount
     }
 
-    // Atualizar grupo
-    const updatedGroup = {
-      ...group,
-      transactions: [...group.transactions, newTransaction],
-      totalSpent: group.totalSpent + amountValue,
+    const basePayload = {
+      group_id: groupId,
+      value: amountValue,
+      description: description.trim(),
+      payer_id: payerId,
     }
 
-    // Calcular novo saldo (simplificado - assumindo que "Você" é o primeiro participante)
-    const splitAmount = amountValue / selectedParticipants.length
-    if (payerId === group.participantsList[0].id) {
-      // Você pagou
-      updatedGroup.balance = group.balance + (amountValue - splitAmount)
-    } else {
-      // Outro pagou
-      updatedGroup.balance = group.balance - splitAmount
+    let { error } = await supabase.from('transactions').insert({
+      ...basePayload,
+      participants: participantsForSplit,
+      splits,
+    })
+
+    if (error?.code === 'PGRST204' && error.message?.includes("'participants'")) {
+      const retry = await supabase.from('transactions').insert({
+        ...basePayload,
+        splits,
+      })
+      error = retry.error
     }
 
-    // Salvar
-    localStorage.setItem(`divideai_group_${groupId}`, JSON.stringify(updatedGroup))
-    
-    // Atualizar lista de grupos
-    const savedGroups = localStorage.getItem('divideai_groups')
-    if (savedGroups) {
-      const groups = JSON.parse(savedGroups)
-      const groupIndex = groups.findIndex((g: any) => g.id === groupId)
-      if (groupIndex !== -1) {
-        groups[groupIndex] = {
-          ...groups[groupIndex],
-          totalSpent: updatedGroup.totalSpent,
-          balance: updatedGroup.balance,
-        }
-        localStorage.setItem('divideai_groups', JSON.stringify(groups))
-      }
+    if (error?.code === 'PGRST204' && error.message?.includes("'splits'")) {
+      const retry = await supabase.from('transactions').insert(basePayload)
+      error = retry.error
+    }
+
+    setSaving(false)
+
+    if (error) {
+      console.error('add-expense.insert-error', {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+      })
+      alert('Erro ao salvar gasto')
+      return
     }
 
     router.push(`/group/${groupId}`)
   }
 
-  if (!group) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-[#F7F7F7] flex items-center justify-center">
         <p className="text-gray-600">Carregando...</p>
@@ -123,13 +155,20 @@ export default function AddExpense() {
     )
   }
 
+  if (!group) {
+    return (
+      <div className="min-h-screen bg-[#F7F7F7] flex items-center justify-center">
+        <p className="text-gray-600">Grupo nao encontrado</p>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-[#F7F7F7]">
-      {/* Header */}
       <header className="bg-white shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
           <Link href={`/group/${groupId}`}>
-            <button className="text-gray-600 hover:text-gray-800">
+            <button className="text-gray-600 hover:text-gray-800" type="button">
               <ArrowLeft className="w-6 h-6" />
             </button>
           </Link>
@@ -137,6 +176,8 @@ export default function AddExpense() {
           <button
             onClick={handleSave}
             className="text-[#5BC5A7] font-medium hover:text-[#4AB396]"
+            type="button"
+            disabled={saving}
           >
             Salvar
           </button>
@@ -144,11 +185,8 @@ export default function AddExpense() {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-6 space-y-6">
-        {/* Valor */}
         <div className="bg-white rounded-xl p-6 shadow-sm text-center">
-          <label className="block text-sm font-medium text-gray-600 mb-2">
-            Valor
-          </label>
+          <label className="block text-sm font-medium text-gray-600 mb-2">Valor</label>
           <div className="flex items-center justify-center gap-2">
             <span className="text-3xl font-bold text-gray-800">R$</span>
             <input
@@ -162,11 +200,8 @@ export default function AddExpense() {
           </div>
         </div>
 
-        {/* Descrição */}
         <div className="bg-white rounded-xl p-4 shadow-sm">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Descrição
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Descricao</label>
           <input
             type="text"
             value={description}
@@ -176,114 +211,93 @@ export default function AddExpense() {
           />
         </div>
 
-        {/* Quem pagou */}
         <div className="bg-white rounded-xl p-4 shadow-sm">
-          <label className="block text-sm font-medium text-gray-700 mb-3">
-            Quem pagou?
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-3">Quem pagou?</label>
           <div className="space-y-2">
             {group.participantsList.map((participant) => (
               <button
                 key={participant.id}
                 onClick={() => setPayerId(participant.id)}
                 className={`w-full flex items-center gap-3 p-3 rounded-lg border-2 transition-all ${
-                  payerId === participant.id
-                    ? 'border-[#5BC5A7] bg-green-50'
-                    : 'border-gray-200 hover:border-gray-300'
+                  payerId === participant.id ? 'border-[#5BC5A7] bg-green-50' : 'border-gray-200 hover:border-gray-300'
                 }`}
+                type="button"
               >
                 <div className="w-10 h-10 bg-[#5BC5A7] rounded-full flex items-center justify-center">
-                  <span className="text-white font-medium text-sm">
-                    {participant.name.charAt(0).toUpperCase()}
-                  </span>
+                  <span className="text-white font-medium text-sm">{participant.name.charAt(0).toUpperCase()}</span>
                 </div>
                 <div className="text-left">
                   <p className="text-sm font-medium text-gray-800">{participant.name}</p>
-                  {participant.email && (
-                    <p className="text-xs text-gray-500">{participant.email}</p>
-                  )}
+                  {participant.email && <p className="text-xs text-gray-500">{participant.email}</p>}
                 </div>
               </button>
             ))}
           </div>
         </div>
 
-        {/* Divisão */}
         <div className="bg-white rounded-xl p-4 shadow-sm">
-          <label className="block text-sm font-medium text-gray-700 mb-3">
-            Como dividir?
-          </label>
-          
-          {/* Tipo de divisão */}
+          <label className="block text-sm font-medium text-gray-700 mb-3">Como dividir?</label>
+
           <div className="flex gap-2 mb-4">
             <button
               onClick={() => setSplitType('equal')}
               className={`flex-1 py-2 px-4 rounded-lg font-medium transition-all ${
-                splitType === 'equal'
-                  ? 'bg-[#5BC5A7] text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                splitType === 'equal' ? 'bg-[#5BC5A7] text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
+              type="button"
             >
               Igual para todos
             </button>
             <button
               onClick={() => setSplitType('manual')}
               className={`flex-1 py-2 px-4 rounded-lg font-medium transition-all ${
-                splitType === 'manual'
-                  ? 'bg-[#5BC5A7] text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                splitType === 'manual' ? 'bg-[#5BC5A7] text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
+              type="button"
             >
               Manual
             </button>
           </div>
 
-          {/* Participantes */}
           <div className="space-y-2">
             <p className="text-xs text-gray-600 mb-2">
               Selecione quem participou ({selectedParticipants.length} {selectedParticipants.length === 1 ? 'pessoa' : 'pessoas'})
             </p>
             {group.participantsList.map((participant) => {
               const isSelected = selectedParticipants.includes(participant.id)
-              const splitAmount = amount && selectedParticipants.length > 0
+              const splitAmountPreview = amount && selectedParticipants.length > 0
                 ? (parseFloat(amount) / selectedParticipants.length).toFixed(2)
                 : '0.00'
-              
+
               return (
                 <button
                   key={participant.id}
                   onClick={() => toggleParticipant(participant.id)}
                   className={`w-full flex items-center justify-between p-3 rounded-lg border-2 transition-all ${
-                    isSelected
-                      ? 'border-[#5BC5A7] bg-green-50'
-                      : 'border-gray-200 hover:border-gray-300'
+                    isSelected ? 'border-[#5BC5A7] bg-green-50' : 'border-gray-200 hover:border-gray-300'
                   }`}
+                  type="button"
                 >
                   <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                      isSelected ? 'bg-[#5BC5A7]' : 'bg-gray-300'
-                    }`}>
-                      <span className="text-white font-medium text-sm">
-                        {participant.name.charAt(0).toUpperCase()}
-                      </span>
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isSelected ? 'bg-[#5BC5A7]' : 'bg-gray-300'}`}>
+                      <span className="text-white font-medium text-sm">{participant.name.charAt(0).toUpperCase()}</span>
                     </div>
                     <p className="text-sm font-medium text-gray-800">{participant.name}</p>
                   </div>
-                  {isSelected && (
-                    <p className="text-sm font-medium text-[#5BC5A7]">R$ {splitAmount}</p>
-                  )}
+                  {isSelected && <p className="text-sm font-medium text-[#5BC5A7]">R$ {splitAmountPreview}</p>}
                 </button>
               )
             })}
           </div>
         </div>
 
-        {/* Botão Salvar */}
         <button
           onClick={handleSave}
+          disabled={saving}
           className="w-full py-4 bg-[#5BC5A7] text-white rounded-xl font-medium hover:bg-[#4AB396] transition-colors shadow-sm"
+          type="button"
         >
-          Salvar gasto
+          {saving ? 'Salvando...' : 'Salvar gasto'}
         </button>
       </main>
     </div>

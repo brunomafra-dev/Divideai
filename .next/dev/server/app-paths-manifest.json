@@ -1,0 +1,12 @@
+{
+  "/activity/page": "app/activity/page.js",
+  "/create-group/page": "app/create-group/page.js",
+  "/group/[id]/add-expense/page": "app/group/[id]/add-expense/page.js",
+  "/group/[id]/edit-expense/[expenseId]/page": "app/group/[id]/edit-expense/[expenseId]/page.js",
+  "/group/[id]/page": "app/group/[id]/page.js",
+  "/group/[id]/settings/page": "app/group/[id]/settings/page.js",
+  "/page": "app/page.js",
+  "/payments/page": "app/payments/page.js",
+  "/profile/page": "app/profile/page.js",
+  "/settings/page": "app/settings/page.js"
+}

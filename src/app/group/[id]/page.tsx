@@ -2,8 +2,9 @@
 
 import { ArrowLeft, Plus, TrendingUp, TrendingDown, Settings } from 'lucide-react'
 import Link from 'next/link'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import { supabase } from '@/lib/supabase'
 
 interface Participant {
   id: string
@@ -11,14 +12,27 @@ interface Participant {
   email?: string
 }
 
-interface Transaction {
+interface TransactionRow {
   id: string
   description: string
+  value: number
+  payer_id: string
+  participants?: string[]
+  splits?: Record<string, number>
+  created_at?: string
+}
+
+interface PaymentRow {
+  from_user: string
+  to_user: string
   amount: number
-  payerId: string
-  payerName: string
-  date: string
-  participants: string[]
+}
+
+interface GroupRow {
+  id: string
+  name: string
+  category: string
+  participants?: Participant[]
 }
 
 interface Group {
@@ -29,23 +43,133 @@ interface Group {
   balance: number
   participants: number
   participantsList: Participant[]
-  transactions: Transaction[]
+  transactions: Array<{
+    id: string
+    description: string
+    amount: number
+    payerId: string
+    payerName: string
+    date: string
+    participants: string[]
+  }>
 }
 
 export default function GroupPage() {
   const params = useParams()
+  const router = useRouter()
   const groupId = params.id as string
+
   const [group, setGroup] = useState<Group | null>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Carregar grupo do localStorage
-    const savedGroup = localStorage.getItem(`divideai_group_${groupId}`)
-    if (savedGroup) {
-      setGroup(JSON.parse(savedGroup))
-    }
-  }, [groupId])
+    const load = async () => {
+      setLoading(true)
 
-  if (!group) {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
+      if (!session) {
+        router.replace('/login')
+        return
+      }
+
+      const { data: groupRow, error: groupError } = await supabase
+        .from('groups')
+        .select('id,name,category,participants')
+        .eq('id', groupId)
+        .single()
+
+      if (groupError || !groupRow) {
+        console.error('group.load-error', groupError)
+        router.replace('/')
+        return
+      }
+
+      const participantsList: Participant[] = Array.isArray(groupRow.participants)
+        ? groupRow.participants
+        : []
+
+      const { data: txRows, error: txError } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('group_id', groupId)
+        .order('created_at', { ascending: false })
+
+      if (txError) {
+        console.error('group.transactions-load-error', txError)
+      }
+
+      const { data: payRows, error: payError } = await supabase
+        .from('payments')
+        .select('from_user,to_user,amount')
+        .eq('group_id', groupId)
+
+      if (payError) {
+        console.error('group.payments-load-error', payError)
+      }
+
+      const safeTx: TransactionRow[] = ((txRows as TransactionRow[] | null) ?? []).map((tx) => ({
+        ...tx,
+        value: Number(tx.value) || 0,
+        participants: participantsList.map((p) => p.id),
+      }))
+
+      const userId = session.user.id
+      const totalSpent = safeTx.reduce((sum, tx) => sum + tx.value, 0)
+      const safePayments: PaymentRow[] = ((payRows as PaymentRow[] | null) ?? []).map((p) => ({
+        ...p,
+        amount: Number(p.amount) || 0,
+      }))
+
+      let paidByMe = 0
+      let myShare = 0
+
+      for (const tx of safeTx) {
+        if (tx.payer_id === userId) paidByMe += tx.value
+        if (tx.participants && tx.participants.length > 0 && tx.participants.includes(userId)) {
+          myShare += tx.value / tx.participants.length
+        }
+      }
+
+      let balance = paidByMe - myShare
+      for (const pay of safePayments) {
+        if (pay.from_user === userId) balance -= pay.amount
+        if (pay.to_user === userId) balance += pay.amount
+      }
+
+      const transactions = safeTx.map((tx) => {
+        const payer = participantsList.find((p) => p.id === tx.payer_id)
+        return {
+          id: tx.id,
+          description: tx.description,
+          amount: tx.value,
+          payerId: tx.payer_id,
+          payerName: tx.payer_id === userId ? 'Voce' : payer?.name || 'Alguem',
+          date: tx.created_at || new Date().toISOString(),
+          participants: tx.participants || [],
+        }
+      })
+
+      setGroup({
+        id: groupRow.id,
+        name: groupRow.name,
+        category: groupRow.category,
+        totalSpent,
+        balance,
+        participants: participantsList.length,
+        participantsList,
+        transactions,
+      })
+
+      setLoading(false)
+    }
+
+    load()
+  }, [groupId, router])
+
+  if (loading) {
     return (
       <div className="min-h-screen bg-[#F7F7F7] flex items-center justify-center">
         <p className="text-gray-600">Carregando...</p>
@@ -53,29 +177,34 @@ export default function GroupPage() {
     )
   }
 
-  // Calcular valor por pessoa
+  if (!group) {
+    return (
+      <div className="min-h-screen bg-[#F7F7F7] flex items-center justify-center">
+        <p className="text-gray-600">Grupo nao encontrado</p>
+      </div>
+    )
+  }
+
   const amountPerPerson = group.participants > 0 ? group.totalSpent / group.participants : 0
 
   return (
     <div className="min-h-screen bg-[#F7F7F7] pb-20">
-      {/* Header */}
       <header className="bg-white shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
           <Link href="/">
-            <button className="text-gray-600 hover:text-gray-800">
+            <button className="text-gray-600 hover:text-gray-800" type="button">
               <ArrowLeft className="w-6 h-6" />
             </button>
           </Link>
           <h1 className="text-lg font-semibold text-gray-800">{group.name}</h1>
           <Link href={`/group/${groupId}/settings`}>
-            <button className="text-gray-600 hover:text-gray-800">
+            <button className="text-gray-600 hover:text-gray-800" type="button">
               <Settings className="w-6 h-6" />
             </button>
           </Link>
         </div>
       </header>
 
-      {/* Balance Card */}
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-4xl mx-auto px-4 py-6">
           <div className="grid grid-cols-2 gap-4">
@@ -106,7 +235,6 @@ export default function GroupPage() {
         </div>
       </div>
 
-      {/* Divisão por Pessoa */}
       {group.totalSpent > 0 && (
         <div className="bg-[#5BC5A7]/10 border-b border-[#5BC5A7]/20">
           <div className="max-w-4xl mx-auto px-4 py-4">
@@ -121,7 +249,6 @@ export default function GroupPage() {
         </div>
       )}
 
-      {/* Transactions List */}
       <main className="max-w-4xl mx-auto px-4 py-6">
         {group.transactions.length === 0 ? (
           <div className="text-center py-12">
@@ -131,7 +258,7 @@ export default function GroupPage() {
             <h3 className="text-lg font-medium text-gray-800 mb-2">Nenhum gasto ainda</h3>
             <p className="text-gray-600 mb-6">Adicione o primeiro gasto do grupo</p>
             <Link href={`/group/${groupId}/add-expense`}>
-              <button className="bg-[#5BC5A7] text-white px-6 py-3 rounded-lg hover:bg-[#4AB396] transition-colors">
+              <button className="bg-[#5BC5A7] text-white px-6 py-3 rounded-lg hover:bg-[#4AB396] transition-colors" type="button">
                 Adicionar gasto
               </button>
             </Link>
@@ -144,49 +271,45 @@ export default function GroupPage() {
             </div>
             <div className="space-y-3">
               {group.transactions.map((transaction) => {
-                // Pegar participantes do gasto
-                const transactionParticipants = group.participantsList.filter(p => 
-                  transaction.participants.includes(p.id)
-                )
+                const transactionParticipants = group.participantsList.filter((p) => transaction.participants.includes(p.id))
                 const displayParticipants = transactionParticipants.slice(0, 3)
                 const remainingCount = transactionParticipants.length - 3
 
                 return (
-                  <div key={transaction.id} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-                    <div className="flex justify-between items-start mb-3">
-                      <div className="flex-1">
-                        <h3 className="text-base font-medium text-gray-800 mb-1">{transaction.description}</h3>
-                        <p className="text-sm text-gray-600">
-                          {transaction.payerName} pagou
-                        </p>
-                        {/* Miniaturas de participantes */}
-                        <div className="flex items-center gap-1 mt-2">
-                          {displayParticipants.map((participant, index) => (
-                            <div
-                              key={participant.id}
-                              className="w-6 h-6 bg-[#5BC5A7] rounded-full flex items-center justify-center text-white text-xs font-medium"
-                              style={{ marginLeft: index > 0 ? '-8px' : '0' }}
-                            >
-                              {participant.name.charAt(0).toUpperCase()}
-                            </div>
-                          ))}
-                          {remainingCount > 0 && (
-                            <div
-                              className="w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center text-gray-700 text-xs font-medium"
-                              style={{ marginLeft: '-8px' }}
-                            >
-                              +{remainingCount}
-                            </div>
-                          )}
+                  <Link key={transaction.id} href={`/group/${groupId}/edit-expense/${transaction.id}`}>
+                    <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 cursor-pointer hover:shadow-md transition-all">
+                      <div className="flex justify-between items-start mb-3">
+                        <div className="flex-1">
+                          <h3 className="text-base font-medium text-gray-800 mb-1">{transaction.description}</h3>
+                          <p className="text-sm text-gray-600">{transaction.payerName} pagou</p>
+                          <div className="flex items-center gap-1 mt-2">
+                            {displayParticipants.map((participant, index) => (
+                              <div
+                                key={participant.id}
+                                className="w-6 h-6 bg-[#5BC5A7] rounded-full flex items-center justify-center text-white text-xs font-medium"
+                                style={{ marginLeft: index > 0 ? '-8px' : '0' }}
+                              >
+                                {participant.name.charAt(0).toUpperCase()}
+                              </div>
+                            ))}
+                            {remainingCount > 0 && (
+                              <div
+                                className="w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center text-gray-700 text-xs font-medium"
+                                style={{ marginLeft: '-8px' }}
+                              >
+                                +{remainingCount}
+                              </div>
+                            )}
+                          </div>
                         </div>
+                        <p className="text-lg font-semibold text-gray-800">R$ {transaction.amount.toFixed(2)}</p>
                       </div>
-                      <p className="text-lg font-semibold text-gray-800">R$ {transaction.amount.toFixed(2)}</p>
+                      <div className="flex items-center justify-between text-xs text-gray-500 pt-2 border-t border-gray-100">
+                        <span>{new Date(transaction.date).toLocaleDateString('pt-BR')}</span>
+                        <span>{transaction.participants.length} {transaction.participants.length === 1 ? 'pessoa' : 'pessoas'}</span>
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between text-xs text-gray-500 pt-2 border-t border-gray-100">
-                      <span>{new Date(transaction.date).toLocaleDateString('pt-BR')}</span>
-                      <span>{transaction.participants.length} {transaction.participants.length === 1 ? 'pessoa' : 'pessoas'}</span>
-                    </div>
-                  </div>
+                  </Link>
                 )
               })}
             </div>
@@ -194,16 +317,14 @@ export default function GroupPage() {
         )}
       </main>
 
-      {/* Ad Space Placeholder */}
       <div className="max-w-4xl mx-auto px-4 py-4">
         <div className="bg-gray-100 rounded-xl p-4 text-center border-2 border-dashed border-gray-300">
-          <p className="text-xs text-gray-500">Espaço reservado para anúncio</p>
+          <p className="text-xs text-gray-500">Espaco reservado para anuncio</p>
         </div>
       </div>
 
-      {/* Floating Action Button */}
       <Link href={`/group/${groupId}/add-expense`}>
-        <button className="fixed bottom-20 right-6 w-16 h-16 bg-[#5BC5A7] rounded-full flex items-center justify-center shadow-lg hover:bg-[#4AB396] transition-all hover:scale-110">
+        <button className="fixed bottom-20 right-6 w-16 h-16 bg-[#5BC5A7] rounded-full flex items-center justify-center shadow-lg hover:bg-[#4AB396] transition-all hover:scale-110" type="button">
           <Plus className="w-8 h-8 text-white" />
         </button>
       </Link>

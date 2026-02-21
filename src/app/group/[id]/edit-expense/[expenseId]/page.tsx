@@ -18,8 +18,8 @@ interface TransactionRow {
   value: number;
   description: string;
   payer_id: string;
-  participants: string[]; // array of participant ids
-  splits: Record<string, number>;
+  participants?: string[]; // array of participant ids
+  splits?: Record<string, number>;
   created_at?: string;
 }
 
@@ -95,7 +95,9 @@ export default function EditExpensePage() {
         setValue(String(tx.value ?? ""));
         setDescription(tx.description ?? "");
         setPayerId(tx.payer_id ?? "");
-        const participantsFromTx: string[] = tx.participants ?? [];
+        const participantsFromTx: string[] = Array.isArray(tx.participants)
+          ? tx.participants
+          : (g?.participants ?? g?.participantsList ?? []).map((p: Participant) => p.id);
         setSelectedParticipants(participantsFromTx);
 
         // if tx.splits exists, try to infer weights (normalize to 1..n)
@@ -191,19 +193,39 @@ export default function EditExpensePage() {
       splitsToSave = calculateEqualSplits();
     }
 
-    const updateObj = {
+    const baseUpdateObj = {
       value: parseFloat(value),
       description,
       payer_id: payerId,
-      participants: selectedParticipants,
-      splits: splitsToSave,
-      // not touching created_at
     };
 
-    const { error } = await supabase
+    let { error } = await supabase
       .from("transactions")
-      .update(updateObj)
+      .update({
+        ...baseUpdateObj,
+        participants: selectedParticipants,
+        splits: splitsToSave,
+      })
       .eq("id", expenseId);
+
+    if (error?.code === "PGRST204" && error.message?.includes("'participants'")) {
+      const retry = await supabase
+        .from("transactions")
+        .update({
+          ...baseUpdateObj,
+          splits: splitsToSave,
+        })
+        .eq("id", expenseId);
+      error = retry.error;
+    }
+
+    if (error?.code === "PGRST204" && error.message?.includes("'splits'")) {
+      const retry = await supabase
+        .from("transactions")
+        .update(baseUpdateObj)
+        .eq("id", expenseId);
+      error = retry.error;
+    }
 
     if (error) {
       console.error("Erro ao atualizar gasto:", error);
