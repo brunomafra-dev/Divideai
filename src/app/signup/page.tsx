@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import { Eye, EyeOff, Mail, Lock, User } from 'lucide-react'
+import { getAuthRedirectUrl } from '@/lib/site-url'
 
 export default function SignUpPage() {
   const [name, setName] = useState('')
@@ -21,7 +22,7 @@ export default function SignUpPage() {
     setError('')
 
     if (password !== confirmPassword) {
-      setError('As senhas não coincidem')
+      setError('As senhas nao coincidem')
       setLoading(false)
       return
     }
@@ -33,31 +34,30 @@ export default function SignUpPage() {
     }
 
     try {
-      const { data, error } = await supabase.auth.signUp({
+      const redirectTo = getAuthRedirectUrl('/auth/callback')
+
+      const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: {
+          emailRedirectTo: redirectTo,
           data: {
-            name: name,
+            name,
           },
         },
       })
 
-      if (error) throw error
+      if (signUpError) throw signUpError
 
       if (data.session) {
-        // Aguarda um momento para garantir que os cookies sejam salvos
-        await new Promise(resolve => setTimeout(resolve, 100))
-        
-        // Força recarregamento completo da página para o middleware reconhecer a sessão
         window.location.href = '/'
-      } else {
-        // Se não há sessão, significa que precisa confirmar email
-        setError('Cadastro realizado! Verifique seu email para confirmar a conta.')
-        setLoading(false)
+        return
       }
-    } catch (error: any) {
-      setError(error.message || 'Erro ao criar conta')
+
+      setError('Cadastro realizado! Verifique seu email para confirmar a conta.')
+      setLoading(false)
+    } catch (err: any) {
+      setError(err?.message || 'Erro ao criar conta')
       setLoading(false)
     }
   }
@@ -65,13 +65,11 @@ export default function SignUpPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#5BC5A7] to-[#4AB396] flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        {/* Logo/Header */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2">Divide Aí</h1>
+          <h1 className="text-4xl font-bold text-white mb-2">Divide Ai</h1>
           <p className="text-white/90 text-lg">Divida gastos com facilidade</p>
         </div>
 
-        {/* Sign Up Card */}
         <div className="bg-white rounded-2xl shadow-2xl p-8">
           <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">Criar Conta</h2>
 
@@ -82,7 +80,6 @@ export default function SignUpPage() {
           )}
 
           <form onSubmit={handleSignUp} className="space-y-5">
-            {/* Name Input */}
             <div>
               <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
                 Nome
@@ -101,7 +98,6 @@ export default function SignUpPage() {
               </div>
             </div>
 
-            {/* Email Input */}
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
                 E-mail
@@ -120,7 +116,6 @@ export default function SignUpPage() {
               </div>
             </div>
 
-            {/* Password Input */}
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
                 Senha
@@ -132,7 +127,7 @@ export default function SignUpPage() {
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
+                  placeholder="********"
                   required
                   className="w-full pl-11 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#5BC5A7] focus:border-transparent outline-none transition-all"
                 />
@@ -146,7 +141,6 @@ export default function SignUpPage() {
               </div>
             </div>
 
-            {/* Confirm Password Input */}
             <div>
               <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
                 Confirmar Senha
@@ -158,7 +152,7 @@ export default function SignUpPage() {
                   type={showConfirmPassword ? 'text' : 'password'}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="••••••••"
+                  placeholder="********"
                   required
                   className="w-full pl-11 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#5BC5A7] focus:border-transparent outline-none transition-all"
                 />
@@ -172,7 +166,6 @@ export default function SignUpPage() {
               </div>
             </div>
 
-            {/* Submit Button */}
             <button
               type="submit"
               disabled={loading}
@@ -182,7 +175,6 @@ export default function SignUpPage() {
             </button>
           </form>
 
-          {/* Divider */}
           <div className="relative my-6">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-gray-300"></div>
@@ -192,10 +184,9 @@ export default function SignUpPage() {
             </div>
           </div>
 
-          {/* Login Link */}
           <div className="text-center">
             <p className="text-gray-600">
-              Já tem uma conta?{' '}
+              Ja tem uma conta?{' '}
               <Link href="/login" className="text-[#5BC5A7] font-medium hover:text-[#4AB396] transition-colors">
                 Entrar
               </Link>
@@ -203,9 +194,8 @@ export default function SignUpPage() {
           </div>
         </div>
 
-        {/* Footer */}
         <p className="text-center text-white/80 text-sm mt-6">
-          Ao continuar, você concorda com nossos Termos de Uso
+          Ao continuar, voce concorda com nossos Termos de Uso
         </p>
       </div>
     </div>

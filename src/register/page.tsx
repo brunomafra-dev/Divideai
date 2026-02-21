@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import { getAuthRedirectUrl } from '@/lib/site-url'
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -10,23 +11,41 @@ export default function RegisterPage() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
 
   async function handleRegister() {
     setLoading(true)
     setError(null)
+    setSuccess(null)
 
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-    })
+    try {
+      const redirectTo = getAuthRedirectUrl('/auth/callback')
 
-    if (error) {
-      setError(error.message)
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: redirectTo,
+        },
+      })
+
+      if (signUpError) {
+        setError(signUpError.message)
+        setLoading(false)
+        return
+      }
+
+      if (data.session) {
+        router.push('/')
+        return
+      }
+
+      setSuccess('Cadastro realizado! Verifique seu email para confirmar a conta.')
       setLoading(false)
-      return
+    } catch (err: any) {
+      setError(err?.message || 'Erro ao criar conta')
+      setLoading(false)
     }
-
-    router.push('/')
   }
 
   return (
@@ -51,6 +70,7 @@ export default function RegisterPage() {
         />
 
         {error && <p className="text-sm text-red-500">{error}</p>}
+        {success && <p className="text-sm text-green-600">{success}</p>}
 
         <button
           onClick={handleRegister}
@@ -63,4 +83,3 @@ export default function RegisterPage() {
     </div>
   )
 }
-
