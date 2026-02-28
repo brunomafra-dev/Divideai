@@ -6,11 +6,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import BottomNav from '@/components/ui/bottom-nav'
+import { fetchGroupMembersMap } from '@/lib/group-members'
 
 interface GroupRow {
   id: string
   name: string
-  participants?: Array<{ id?: string; name?: string; email?: string }>
 }
 
 interface TransactionRow {
@@ -21,6 +21,7 @@ interface TransactionRow {
   description?: string
   participants?: string[]
   splits?: Record<string, number>
+  status?: string
   created_at?: string
 }
 
@@ -82,7 +83,7 @@ export default function Payments() {
 
     const { data: groupsData, error: groupsError } = await supabase
       .from('groups')
-      .select('id,name,participants')
+      .select('id,name')
 
     if (groupsError) {
       console.error('payments.groups-load-error', groupsError)
@@ -106,6 +107,7 @@ export default function Payments() {
     if (payError) console.error('payments.payments-load-error', payError)
 
     const groups = (groupsData || []) as GroupRow[]
+    const membersByGroup = await fetchGroupMembersMap(groups.map((group) => group.id))
     const txRows = ((txData as TransactionRow[] | null) || []).map((tx) => ({ ...tx, value: Number(tx.value) || 0 }))
     const payRows = ((payData as PaymentRow[] | null) || []).map((p) => ({ ...p, amount: Number(p.amount) || 0 }))
 
@@ -113,21 +115,19 @@ export default function Payments() {
     groups.forEach((g) => groupMap.set(g.id, g))
 
     const nameFromGroup = (groupId: string, userId: string) => {
-      const list = Array.isArray(groupMap.get(groupId)?.participants)
-        ? groupMap.get(groupId)!.participants!
-        : []
-      const found = list.find((p) => String(p?.id ?? '') === String(userId))
-      return found?.name || found?.email || 'Alguem'
+      const list = membersByGroup.get(groupId) || []
+      const found = list.find((p) => String(p.id) === String(userId))
+      return found?.name || 'Alguem'
     }
 
     const pendingByKey = new Map<string, { groupId: string; from: string; to: string; amount: number; date: string; description: string; groupName: string }>()
     let computedSelfPaid = 0
 
     for (const tx of txRows) {
+      if (String(tx.status || '').toLowerCase() === 'paid') continue
+
       const groupName = groupMap.get(tx.group_id)?.name || 'Grupo'
-      const participants = Array.isArray(groupMap.get(tx.group_id)?.participants)
-        ? groupMap.get(tx.group_id)!.participants!.map((p) => String(p.id || '')).filter(Boolean)
-        : []
+      const participants = (membersByGroup.get(tx.group_id) || []).map((member) => member.id)
 
       if (!participants.includes(currentUserId)) continue
 
@@ -224,7 +224,7 @@ export default function Payments() {
   }, [load])
 
   const handleMarkAsReceived = async (payment: Payment) => {
-    if (!myId || payment.status !== 'pending') return
+    if (!myId || payment.status !== 'pending' || myId !== payment.toUserId) return
 
     setSavingId(payment.id)
     try {
@@ -317,7 +317,7 @@ export default function Payments() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F7F7F7] pb-20">
+    <div className="min-h-screen bg-[#F7F7F7] flex flex-col overflow-x-hidden">
       <header className="bg-white shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
           <Link href="/">
@@ -362,7 +362,7 @@ export default function Payments() {
         </div>
       </div>
 
-      <main className="max-w-4xl mx-auto px-4 py-6">
+      <main className="flex-1 overflow-y-auto max-w-4xl w-full mx-auto px-4 py-6 pb-[calc(8rem+env(safe-area-inset-bottom))]">
         {filteredPayments.length === 0 ? (
           <div className="text-center py-12">
             <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -380,36 +380,40 @@ export default function Payments() {
                   <span className="text-xs px-2 py-1 rounded-full bg-orange-50 text-orange-500">Pendentes</span>
                 </div>
                 <div className="space-y-2">
-                  {group.items.map((payment) => (
-                    <div key={payment.id} className="p-3 rounded-lg border border-gray-200 bg-gray-50">
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="text-sm font-medium text-gray-800">
-                          {payment.from} {'->'} {payment.to}
-                        </p>
-                        <p className="text-sm font-semibold text-gray-800">R$ {payment.amount.toFixed(2)}</p>
+                  {group.items.map((payment) => {
+                    const canMarkAsReceived = myId === payment.toUserId
+                    return (
+                      <div key={payment.id} className="p-3 rounded-lg border border-gray-200 bg-gray-50">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-sm font-medium text-gray-800">
+                            {payment.from} {'->'} {payment.to}
+                          </p>
+                          <p className="text-sm font-semibold text-gray-800">R$ {payment.amount.toFixed(2)}</p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            onClick={() => handleMarkAsReceived(payment)}
+                            disabled={!canMarkAsReceived || savingId === payment.id}
+                            className="py-2 bg-[#5BC5A7] text-white rounded-lg font-medium hover:bg-[#4AB396] disabled:opacity-60 disabled:cursor-not-allowed"
+                            type="button"
+                            title={canMarkAsReceived ? 'Marcar como recebido' : 'Somente quem recebeu o pagamento pode confirmar'}
+                          >
+                            {savingId === payment.id ? 'Salvando...' : 'Marcar como recebido'}
+                          </button>
+                          <button
+                            onClick={() => {
+                              setChargeTarget(payment)
+                              setPixCopyPaste('')
+                            }}
+                            className="py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-100"
+                            type="button"
+                          >
+                            Cobrar
+                          </button>
+                        </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <button
-                          onClick={() => handleMarkAsReceived(payment)}
-                          disabled={savingId === payment.id}
-                          className="py-2 bg-[#5BC5A7] text-white rounded-lg font-medium hover:bg-[#4AB396] disabled:opacity-60"
-                          type="button"
-                        >
-                          {savingId === payment.id ? 'Salvando...' : 'Marcar como recebido'}
-                        </button>
-                        <button
-                          onClick={() => {
-                            setChargeTarget(payment)
-                            setPixCopyPaste('')
-                          }}
-                          className="py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-100"
-                          type="button"
-                        >
-                          Cobrar
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
             ))}
@@ -487,7 +491,7 @@ export default function Payments() {
         </div>
       )}
 
-      <div className="max-w-4xl mx-auto px-4 py-4">
+      <div className="max-w-4xl w-full mx-auto px-4 py-4">
         <div className="bg-gray-100 rounded-xl p-4 text-center border-2 border-dashed border-gray-300">
           <p className="text-xs text-gray-500">Espaco reservado para anuncio</p>
         </div>

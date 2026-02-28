@@ -5,21 +5,92 @@ import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { getAuthRedirectUrl } from '@/lib/site-url'
+import { ensureProfileForUser, savePendingProfileSeed } from '@/lib/profiles'
+
+function normalizeUsername(raw: string) {
+  return raw
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '')
+}
 
 export default function RegisterPage() {
   const router = useRouter()
 
+  const [username, setUsername] = useState('')
+  const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const [usernameStatus, setUsernameStatus] = useState<'idle' | 'available' | 'taken'>('idle')
+  const [checkingUsername, setCheckingUsername] = useState(false)
+
+  async function checkUsernameAvailability(rawValue?: string) {
+    const candidate = normalizeUsername(rawValue ?? username)
+    if (!candidate) {
+      setUsernameStatus('idle')
+      return false
+    }
+
+    setCheckingUsername(true)
+    try {
+      const { data, error: availabilityError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('username', candidate)
+        .maybeSingle()
+
+      if (availabilityError) {
+        setUsernameStatus('idle')
+        return true
+      }
+
+      const available = !data
+      setUsernameStatus(available ? 'available' : 'taken')
+      return available
+    } finally {
+      setCheckingUsername(false)
+    }
+  }
 
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     setError(null)
     setSuccess(null)
+
+    const cleanUsername = normalizeUsername(username)
+    const cleanFullName = fullName.trim()
+
+    if (!cleanUsername) {
+      setError('Username invalido. Use letras, numeros e underscore.')
+      setLoading(false)
+      return
+    }
+
+    if (!cleanFullName) {
+      setError('Nome completo e obrigatorio')
+      setLoading(false)
+      return
+    }
+
+    if (password !== confirmPassword) {
+      setError('As senhas nao coincidem')
+      setLoading(false)
+      return
+    }
+
+    const available = await checkUsernameAvailability(cleanUsername)
+    if (!available) {
+      setError('Esse nome de usuario ja esta em uso. Escolha outro.')
+      setLoading(false)
+      return
+    }
 
     try {
       const redirectTo = getAuthRedirectUrl('/auth/callback')
@@ -29,6 +100,10 @@ export default function RegisterPage() {
         password,
         options: {
           emailRedirectTo: redirectTo,
+          data: {
+            username: cleanUsername,
+            full_name: cleanFullName,
+          },
         },
       })
 
@@ -36,6 +111,39 @@ export default function RegisterPage() {
         setError(signUpError.message)
         setLoading(false)
         return
+      }
+
+      if (!data.user) {
+        setError('Nao foi possivel criar usuario')
+        setLoading(false)
+        return
+      }
+
+      savePendingProfileSeed({ userId: data.user.id, username: cleanUsername, fullName: cleanFullName })
+
+      try {
+        await ensureProfileForUser(data.user, {
+          username: cleanUsername,
+          fullName: cleanFullName,
+        })
+      } catch (profileError: any) {
+        const profileMessage = String(profileError?.message || '').toLowerCase()
+        const profileCode = String(profileError?.code || '')
+        const duplicate = profileCode === '23505' || profileMessage.includes('username_already_taken') || profileMessage.includes('duplicate')
+
+        if (duplicate) {
+          await supabase.auth.signOut()
+          setError('Esse username ja esta em uso. Escolha outro.')
+          setLoading(false)
+          return
+        }
+
+        if (data.session) {
+          await supabase.auth.signOut()
+          setError('Falha ao criar perfil. Tente novamente.')
+          setLoading(false)
+          return
+        }
       }
 
       if (data.session) {
@@ -71,10 +179,54 @@ export default function RegisterPage() {
         />
 
         <input
+          type="text"
+          placeholder="Nome completo"
+          value={fullName}
+          onChange={e => setFullName(e.target.value)}
+          required
+          className="w-full border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-[#5BC5A7]"
+        />
+
+        <input
+          type="text"
+          placeholder="Nome de usuario"
+          value={username}
+          onChange={e => {
+            setUsername(e.target.value)
+            setUsernameStatus('idle')
+          }}
+          onBlur={() => {
+            if (username.trim()) {
+              void checkUsernameAvailability()
+            }
+          }}
+          required
+          className="w-full border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-[#5BC5A7]"
+        />
+        <p className="text-xs text-gray-500 -mt-2">
+          {checkingUsername
+            ? 'Verificando disponibilidade...'
+            : usernameStatus === 'available'
+              ? 'Nome de usuario disponivel'
+              : usernameStatus === 'taken'
+                ? 'Nome de usuario indisponivel'
+                : 'Use letras, numeros e underscore'}
+        </p>
+
+        <input
           type="password"
           placeholder="Senha"
           value={password}
           onChange={e => setPassword(e.target.value)}
+          required
+          className="w-full border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-[#5BC5A7]"
+        />
+
+        <input
+          type="password"
+          placeholder="Repetir senha"
+          value={confirmPassword}
+          onChange={e => setConfirmPassword(e.target.value)}
           required
           className="w-full border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-[#5BC5A7]"
         />

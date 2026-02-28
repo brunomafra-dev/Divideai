@@ -26,7 +26,7 @@ function BottomNav() {
     return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("nav", {
         className: "fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 safe-area-bottom z-50",
         children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-            className: "max-w-4xl mx-auto px-4 py-3 flex justify-around items-center",
+            className: "max-w-4xl mx-auto px-4 py-3 flex justify-around items-center min-h-[72px]",
             children: [
                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$client$2f$app$2d$dir$2f$link$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["default"], {
                     href: "/",
@@ -255,9 +255,11 @@ var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist
 var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$navigation$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/node_modules/next/navigation.js [app-client] (ecmascript)");
 var __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$supabase$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/src/lib/supabase.ts [app-client] (ecmascript)");
 var __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$components$2f$ui$2f$bottom$2d$nav$2e$tsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/src/components/ui/bottom-nav.tsx [app-client] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$profiles$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/src/lib/profiles.ts [app-client] (ecmascript)");
 ;
 var _s = __turbopack_context__.k.signature();
 'use client';
+;
 ;
 ;
 ;
@@ -302,7 +304,14 @@ function Activity() {
                     }
                     setMyId(session.user.id);
                     const { data: g } = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$supabase$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__["supabase"].from('groups').select('id,name,participants');
-                    setGroups(g || []);
+                    const safeGroups = g || [];
+                    const hydrated = await Promise.all(safeGroups.map({
+                        "Activity.useEffect.run": async (group)=>({
+                                ...group,
+                                participants: await (0, __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$profiles$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__["hydrateParticipantsWithProfiles"])(Array.isArray(group.participants) ? group.participants : [])
+                            })
+                    }["Activity.useEffect.run"]));
+                    setGroups(hydrated);
                     const { data: t } = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$supabase$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__["supabase"].from('transactions').select('id,group_id,value,payer_id,created_at').order('created_at', {
                         ascending: false
                     }).limit(30);
@@ -343,8 +352,8 @@ function Activity() {
     const userNameFromGroup = (groupId, userId)=>{
         const group = groupMap.get(groupId);
         const participants = Array.isArray(group?.participants) ? group.participants : [];
-        const found = participants.find((p)=>String(p?.id ?? p?.user_id) === String(userId));
-        return found?.name || found?.email || null;
+        const found = participants.find((p)=>String(p?.user_id ?? p?.id) === String(userId));
+        return found?.name || found?.display_name || found?.email || null;
     };
     const activities = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useMemo"])({
         "Activity.useMemo[activities]": ()=>{
@@ -396,17 +405,17 @@ function Activity() {
                 children: "Carregando..."
             }, void 0, false, {
                 fileName: "[project]/src/app/activity/page.tsx",
-                lineNumber: 188,
+                lineNumber: 196,
                 columnNumber: 9
             }, this)
         }, void 0, false, {
             fileName: "[project]/src/app/activity/page.tsx",
-            lineNumber: 187,
+            lineNumber: 195,
             columnNumber: 7
         }, this);
     }
     return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-        className: "min-h-screen bg-[#F7F7F7] pb-20",
+        className: "min-h-screen bg-[#F7F7F7] flex flex-col overflow-x-hidden",
         children: [
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("header", {
                 className: "bg-white shadow-sm",
@@ -422,17 +431,17 @@ function Activity() {
                                     className: "w-6 h-6"
                                 }, void 0, false, {
                                     fileName: "[project]/src/app/activity/page.tsx",
-                                    lineNumber: 200,
+                                    lineNumber: 208,
                                     columnNumber: 15
                                 }, this)
                             }, void 0, false, {
                                 fileName: "[project]/src/app/activity/page.tsx",
-                                lineNumber: 199,
+                                lineNumber: 207,
                                 columnNumber: 13
                             }, this)
                         }, void 0, false, {
                             fileName: "[project]/src/app/activity/page.tsx",
-                            lineNumber: 198,
+                            lineNumber: 206,
                             columnNumber: 11
                         }, this),
                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("h1", {
@@ -440,29 +449,29 @@ function Activity() {
                             children: "Atividade"
                         }, void 0, false, {
                             fileName: "[project]/src/app/activity/page.tsx",
-                            lineNumber: 203,
+                            lineNumber: 211,
                             columnNumber: 11
                         }, this),
                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                             className: "w-6"
                         }, void 0, false, {
                             fileName: "[project]/src/app/activity/page.tsx",
-                            lineNumber: 204,
+                            lineNumber: 212,
                             columnNumber: 11
                         }, this)
                     ]
                 }, void 0, true, {
                     fileName: "[project]/src/app/activity/page.tsx",
-                    lineNumber: 197,
+                    lineNumber: 205,
                     columnNumber: 9
                 }, this)
             }, void 0, false, {
                 fileName: "[project]/src/app/activity/page.tsx",
-                lineNumber: 196,
+                lineNumber: 204,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("main", {
-                className: "max-w-4xl mx-auto px-4 py-6",
+                className: "flex-1 overflow-y-auto max-w-4xl w-full mx-auto px-4 py-6 pb-[calc(8rem+env(safe-area-inset-bottom))]",
                 children: activities.length === 0 ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                     className: "bg-white rounded-xl p-6 shadow-sm border border-gray-100 text-center",
                     children: [
@@ -471,7 +480,7 @@ function Activity() {
                             children: "Sem atividades por enquanto"
                         }, void 0, false, {
                             fileName: "[project]/src/app/activity/page.tsx",
-                            lineNumber: 211,
+                            lineNumber: 219,
                             columnNumber: 13
                         }, this),
                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -479,13 +488,13 @@ function Activity() {
                             children: "Quando alguém adicionar gastos ou pagamentos, eles aparecem aqui."
                         }, void 0, false, {
                             fileName: "[project]/src/app/activity/page.tsx",
-                            lineNumber: 212,
+                            lineNumber: 220,
                             columnNumber: 13
                         }, this)
                     ]
                 }, void 0, true, {
                     fileName: "[project]/src/app/activity/page.tsx",
-                    lineNumber: 210,
+                    lineNumber: 218,
                     columnNumber: 11
                 }, this) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                     className: "space-y-3",
@@ -500,12 +509,12 @@ function Activity() {
                                             className: "w-5 h-5 text-[#5BC5A7]"
                                         }, void 0, false, {
                                             fileName: "[project]/src/app/activity/page.tsx",
-                                            lineNumber: 225,
+                                            lineNumber: 233,
                                             columnNumber: 21
                                         }, this)
                                     }, void 0, false, {
                                         fileName: "[project]/src/app/activity/page.tsx",
-                                        lineNumber: 224,
+                                        lineNumber: 232,
                                         columnNumber: 19
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -516,7 +525,7 @@ function Activity() {
                                                 children: activity.description
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/activity/page.tsx",
-                                                lineNumber: 228,
+                                                lineNumber: 236,
                                                 columnNumber: 21
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -524,7 +533,7 @@ function Activity() {
                                                 children: activity.groupName
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/activity/page.tsx",
-                                                lineNumber: 231,
+                                                lineNumber: 239,
                                                 columnNumber: 21
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -532,38 +541,38 @@ function Activity() {
                                                 children: timeAgo(activity.createdAt)
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/activity/page.tsx",
-                                                lineNumber: 232,
+                                                lineNumber: 240,
                                                 columnNumber: 21
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/src/app/activity/page.tsx",
-                                        lineNumber: 227,
+                                        lineNumber: 235,
                                         columnNumber: 19
                                     }, this)
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/src/app/activity/page.tsx",
-                                lineNumber: 223,
+                                lineNumber: 231,
                                 columnNumber: 17
                             }, this)
                         }, activity.id, false, {
                             fileName: "[project]/src/app/activity/page.tsx",
-                            lineNumber: 219,
+                            lineNumber: 227,
                             columnNumber: 15
                         }, this))
                 }, void 0, false, {
                     fileName: "[project]/src/app/activity/page.tsx",
-                    lineNumber: 217,
+                    lineNumber: 225,
                     columnNumber: 11
                 }, this)
             }, void 0, false, {
                 fileName: "[project]/src/app/activity/page.tsx",
-                lineNumber: 208,
+                lineNumber: 216,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                className: "max-w-4xl mx-auto px-4 py-4",
+                className: "max-w-4xl w-full mx-auto px-4 py-4",
                 children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                     className: "bg-gray-100 rounded-xl p-4 text-center border-2 border-dashed border-gray-300",
                     children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -571,28 +580,28 @@ function Activity() {
                         children: "Espaço reservado para anúncio"
                     }, void 0, false, {
                         fileName: "[project]/src/app/activity/page.tsx",
-                        lineNumber: 244,
+                        lineNumber: 252,
                         columnNumber: 11
                     }, this)
                 }, void 0, false, {
                     fileName: "[project]/src/app/activity/page.tsx",
-                    lineNumber: 243,
+                    lineNumber: 251,
                     columnNumber: 9
                 }, this)
             }, void 0, false, {
                 fileName: "[project]/src/app/activity/page.tsx",
-                lineNumber: 242,
+                lineNumber: 250,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$components$2f$ui$2f$bottom$2d$nav$2e$tsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__["default"], {}, void 0, false, {
                 fileName: "[project]/src/app/activity/page.tsx",
-                lineNumber: 249,
+                lineNumber: 257,
                 columnNumber: 7
             }, this)
         ]
     }, void 0, true, {
         fileName: "[project]/src/app/activity/page.tsx",
-        lineNumber: 194,
+        lineNumber: 202,
         columnNumber: 5
     }, this);
 }

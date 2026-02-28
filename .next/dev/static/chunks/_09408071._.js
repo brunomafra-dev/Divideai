@@ -14,9 +14,11 @@ var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist
 var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$navigation$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/node_modules/next/navigation.js [app-client] (ecmascript)");
 var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/node_modules/next/dist/compiled/react/index.js [app-client] (ecmascript)");
 var __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$supabase$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/src/lib/supabase.ts [app-client] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$profiles$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/src/lib/profiles.ts [app-client] (ecmascript)");
 ;
 var _s = __turbopack_context__.k.signature();
 'use client';
+;
 ;
 ;
 ;
@@ -93,11 +95,19 @@ function CreateGroup() {
                 alert('Usuario nao autenticado');
                 return;
             }
+            let profileUsername = '';
+            try {
+                const profile = await (0, __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$profiles$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__["ensureProfileForUser"])(user);
+                profileUsername = profile.username;
+            } catch  {}
             const normalizedParticipants = participants.map((p)=>{
                 if (p.id !== SELF_ID) return p;
+                const selfName = (p.name || '').trim();
                 return {
                     id: user.id,
-                    name: p.name,
+                    user_id: user.id,
+                    display_name: selfName || 'Voce',
+                    name: profileUsername || selfName || 'Voce',
                     email: p.email ?? user.email ?? undefined
                 };
             });
@@ -169,17 +179,17 @@ function CreateGroup() {
                                     className: "w-6 h-6"
                                 }, void 0, false, {
                                     fileName: "[project]/src/app/create-group/page.tsx",
-                                    lineNumber: 160,
+                                    lineNumber: 173,
                                     columnNumber: 15
                                 }, this)
                             }, void 0, false, {
                                 fileName: "[project]/src/app/create-group/page.tsx",
-                                lineNumber: 159,
+                                lineNumber: 172,
                                 columnNumber: 13
                             }, this)
                         }, void 0, false, {
                             fileName: "[project]/src/app/create-group/page.tsx",
-                            lineNumber: 158,
+                            lineNumber: 171,
                             columnNumber: 11
                         }, this),
                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("h1", {
@@ -187,7 +197,7 @@ function CreateGroup() {
                             children: "Criar grupo"
                         }, void 0, false, {
                             fileName: "[project]/src/app/create-group/page.tsx",
-                            lineNumber: 163,
+                            lineNumber: 176,
                             columnNumber: 11
                         }, this),
                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
@@ -198,18 +208,18 @@ function CreateGroup() {
                             children: "Criar"
                         }, void 0, false, {
                             fileName: "[project]/src/app/create-group/page.tsx",
-                            lineNumber: 164,
+                            lineNumber: 177,
                             columnNumber: 11
                         }, this)
                     ]
                 }, void 0, true, {
                     fileName: "[project]/src/app/create-group/page.tsx",
-                    lineNumber: 157,
+                    lineNumber: 170,
                     columnNumber: 9
                 }, this)
             }, void 0, false, {
                 fileName: "[project]/src/app/create-group/page.tsx",
-                lineNumber: 156,
+                lineNumber: 169,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("main", {
@@ -223,7 +233,7 @@ function CreateGroup() {
                                 children: "Nome do grupo"
                             }, void 0, false, {
                                 fileName: "[project]/src/app/create-group/page.tsx",
-                                lineNumber: 177,
+                                lineNumber: 190,
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
@@ -234,13 +244,13 @@ function CreateGroup() {
                                 className: "w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#5BC5A7]"
                             }, void 0, false, {
                                 fileName: "[project]/src/app/create-group/page.tsx",
-                                lineNumber: 178,
+                                lineNumber: 191,
                                 columnNumber: 11
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/src/app/create-group/page.tsx",
-                        lineNumber: 176,
+                        lineNumber: 189,
                         columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -251,7 +261,7 @@ function CreateGroup() {
                                 children: "Categoria"
                             }, void 0, false, {
                                 fileName: "[project]/src/app/create-group/page.tsx",
-                                lineNumber: 188,
+                                lineNumber: 201,
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -266,7 +276,7 @@ function CreateGroup() {
                                                 children: cat.icon
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/create-group/page.tsx",
-                                                lineNumber: 199,
+                                                lineNumber: 212,
                                                 columnNumber: 17
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
@@ -274,24 +284,24 @@ function CreateGroup() {
                                                 children: cat.label
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/create-group/page.tsx",
-                                                lineNumber: 200,
+                                                lineNumber: 213,
                                                 columnNumber: 17
                                             }, this)
                                         ]
                                     }, cat.id, true, {
                                         fileName: "[project]/src/app/create-group/page.tsx",
-                                        lineNumber: 191,
+                                        lineNumber: 204,
                                         columnNumber: 15
                                     }, this))
                             }, void 0, false, {
                                 fileName: "[project]/src/app/create-group/page.tsx",
-                                lineNumber: 189,
+                                lineNumber: 202,
                                 columnNumber: 11
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/src/app/create-group/page.tsx",
-                        lineNumber: 187,
+                        lineNumber: 200,
                         columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -306,7 +316,7 @@ function CreateGroup() {
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/src/app/create-group/page.tsx",
-                                lineNumber: 207,
+                                lineNumber: 220,
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -318,7 +328,7 @@ function CreateGroup() {
                                                 children: participant.name
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/create-group/page.tsx",
-                                                lineNumber: 215,
+                                                lineNumber: 228,
                                                 columnNumber: 17
                                             }, this),
                                             participant.id !== SELF_ID && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
@@ -328,23 +338,23 @@ function CreateGroup() {
                                                     className: "w-5 h-5 text-gray-400 hover:text-red-500"
                                                 }, void 0, false, {
                                                     fileName: "[project]/src/app/create-group/page.tsx",
-                                                    lineNumber: 218,
+                                                    lineNumber: 231,
                                                     columnNumber: 21
                                                 }, this)
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/create-group/page.tsx",
-                                                lineNumber: 217,
+                                                lineNumber: 230,
                                                 columnNumber: 19
                                             }, this)
                                         ]
                                     }, participant.id, true, {
                                         fileName: "[project]/src/app/create-group/page.tsx",
-                                        lineNumber: 211,
+                                        lineNumber: 224,
                                         columnNumber: 15
                                     }, this))
                             }, void 0, false, {
                                 fileName: "[project]/src/app/create-group/page.tsx",
-                                lineNumber: 209,
+                                lineNumber: 222,
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -358,7 +368,7 @@ function CreateGroup() {
                                         className: "w-full px-4 py-2 border border-gray-200 rounded-lg"
                                     }, void 0, false, {
                                         fileName: "[project]/src/app/create-group/page.tsx",
-                                        lineNumber: 226,
+                                        lineNumber: 239,
                                         columnNumber: 13
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
@@ -369,7 +379,7 @@ function CreateGroup() {
                                         className: "w-full px-4 py-2 border border-gray-200 rounded-lg"
                                     }, void 0, false, {
                                         fileName: "[project]/src/app/create-group/page.tsx",
-                                        lineNumber: 233,
+                                        lineNumber: 246,
                                         columnNumber: 13
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
@@ -381,26 +391,26 @@ function CreateGroup() {
                                                 className: "w-4 h-4"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/create-group/page.tsx",
-                                                lineNumber: 245,
+                                                lineNumber: 258,
                                                 columnNumber: 15
                                             }, this),
                                             "Adicionar participante"
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/src/app/create-group/page.tsx",
-                                        lineNumber: 240,
+                                        lineNumber: 253,
                                         columnNumber: 13
                                     }, this)
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/src/app/create-group/page.tsx",
-                                lineNumber: 225,
+                                lineNumber: 238,
                                 columnNumber: 11
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/src/app/create-group/page.tsx",
-                        lineNumber: 206,
+                        lineNumber: 219,
                         columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
@@ -411,19 +421,19 @@ function CreateGroup() {
                         children: loading ? 'Criando...' : 'Criar grupo'
                     }, void 0, false, {
                         fileName: "[project]/src/app/create-group/page.tsx",
-                        lineNumber: 251,
+                        lineNumber: 264,
                         columnNumber: 9
                     }, this)
                 ]
             }, void 0, true, {
                 fileName: "[project]/src/app/create-group/page.tsx",
-                lineNumber: 175,
+                lineNumber: 188,
                 columnNumber: 7
             }, this)
         ]
     }, void 0, true, {
         fileName: "[project]/src/app/create-group/page.tsx",
-        lineNumber: 155,
+        lineNumber: 168,
         columnNumber: 5
     }, this);
 }

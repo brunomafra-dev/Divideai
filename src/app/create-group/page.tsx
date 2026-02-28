@@ -1,20 +1,23 @@
 'use client'
 
-import { ArrowLeft, Plus, X } from 'lucide-react'
+import { ArrowLeft, Copy, UserPlus } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { ensureProfileForUser } from '@/lib/profiles'
+import { generateSecureInviteToken } from '@/lib/invites'
+import { buildInviteLink } from '@/lib/site-url'
 
 type Category = 'apartment' | 'house' | 'trip' | 'other'
 
 interface Participant {
   id: string
+  user_id?: string
+  display_name?: string
   name: string
   email?: string
 }
-
-const SELF_ID = 'self'
 
 const categories: Array<{ id: Category; label: string; icon: string }> = [
   { id: 'apartment', label: 'Apartamento', icon: '🏢' },
@@ -28,38 +31,16 @@ export default function CreateGroup() {
 
   const [groupName, setGroupName] = useState('')
   const [category, setCategory] = useState<Category>('other')
-  const [participants, setParticipants] = useState<Participant[]>([{ id: SELF_ID, name: 'Voce' }])
-  const [newParticipantName, setNewParticipantName] = useState('')
-  const [newParticipantEmail, setNewParticipantEmail] = useState('')
   const [loading, setLoading] = useState(false)
-
-  const addParticipant = () => {
-    const trimmedName = newParticipantName.trim()
-    const trimmedEmail = newParticipantEmail.trim()
-
-    if (!trimmedName) return
-
-    const newParticipant: Participant = {
-      id: crypto.randomUUID(),
-      name: trimmedName,
-      email: trimmedEmail || undefined,
-    }
-
-    setParticipants((prev) => [...prev, newParticipant])
-    setNewParticipantName('')
-    setNewParticipantEmail('')
-  }
-
-  const removeParticipant = (id: string) => {
-    if (id === SELF_ID) return
-    setParticipants((prev) => prev.filter((p) => p.id !== id))
-  }
+  const [generateInviteOnCreate, setGenerateInviteOnCreate] = useState(true)
+  const [createdGroupId, setCreatedGroupId] = useState<string | null>(null)
+  const [inviteLink, setInviteLink] = useState('')
 
   const handleCreateGroup = async () => {
     const trimmedGroupName = groupName.trim()
 
-    if (!trimmedGroupName || participants.length < 2) {
-      alert('Adicione um nome e pelo menos 2 participantes')
+    if (!trimmedGroupName) {
+      alert('Adicione um nome para o grupo')
       return
     }
 
@@ -71,81 +52,67 @@ export default function CreateGroup() {
       } = await supabase.auth.getUser()
 
       if (userError || !user) {
-        console.error('auth.getUser failed:', userError)
         alert('Usuario nao autenticado')
         return
       }
 
-      const normalizedParticipants: Participant[] = participants.map((p) => {
-        if (p.id !== SELF_ID) return p
-        return {
-          id: user.id,
-          name: p.name,
-          email: p.email ?? user.email ?? undefined,
-        }
-      })
+      let profileUsername = ''
+      try {
+        const profile = await ensureProfileForUser(user)
+        profileUsername = profile.username
+      } catch {}
 
-      const insertPayload = {
-        name: trimmedGroupName,
-        category,
-        owner_id: user.id,
-        participants: normalizedParticipants,
+      const creatorParticipant: Participant = {
+        id: user.id,
+        user_id: user.id,
+        display_name: 'Voce',
+        name: profileUsername || 'Voce',
+        email: user.email ?? undefined,
       }
 
-      const safePayloadLog = {
-        name: insertPayload.name,
-        category: insertPayload.category,
-        owner_id: insertPayload.owner_id,
-        participants: insertPayload.participants.map((p) => ({
-          id: p.id,
-          name: p.name,
-          has_email: Boolean(p.email),
-        })),
-      }
-
-      console.log('create-group.auth-user-id', { user_id: user.id })
-      console.log('create-group.insert-payload', safePayloadLog)
-
-      const { data, error, status } = await supabase
+      const { data, error } = await supabase
         .from('groups')
-        .insert(insertPayload)
+        .insert({
+          name: trimmedGroupName,
+          category,
+          owner_id: user.id,
+          participants: [creatorParticipant],
+        })
         .select('id')
         .single()
 
       if (error) {
-        const rawError = error as unknown as Record<string, unknown>
-        const fallbackMessage =
-          typeof rawError.message === 'string' ? rawError.message : 'Erro ao criar grupo'
-        const isRlsForbidden = status === 403 || rawError.code === '42501'
-
-        console.error('create-group.insert-error', {
-          status,
-          code: rawError.code ?? null,
-          message: rawError.message ?? null,
-          details: rawError.details ?? null,
-          hint: rawError.hint ?? null,
-          raw: JSON.stringify(rawError, Object.getOwnPropertyNames(rawError)),
-          user_id: user.id,
-          payload: safePayloadLog,
-        })
-
-        alert(
-          isRlsForbidden
-            ? 'Sem permissao para criar grupo (RLS). Verifique a policy INSERT de groups.'
-            : fallbackMessage
-        )
+        alert(error.message || 'Erro ao criar grupo')
         return
       }
 
-      router.push(`/group/${data.id}`)
-    } catch (e) {
-      const err = e as Record<string, unknown>
-      console.error('create-group.unexpected-error', {
-        message: err?.message ?? null,
-        stack: err?.stack ?? null,
-        raw: JSON.stringify(err, Object.getOwnPropertyNames(err ?? {})),
+      const { error: participantInsertError } = await supabase.from('participants').insert({
+        group_id: data.id,
+        user_id: user.id,
+        role: 'owner',
       })
-      alert('Erro inesperado ao criar grupo')
+
+      if (participantInsertError && participantInsertError.code !== '23505') {
+        alert(participantInsertError.message || 'Erro ao criar participante do grupo')
+        return
+      }
+
+      if (generateInviteOnCreate) {
+        const token = generateSecureInviteToken()
+        const { error: inviteError } = await supabase.from('invite_tokens').insert({
+          group_id: data.id,
+          created_by: user.id,
+          token,
+        })
+
+        if (!inviteError) {
+          setInviteLink(buildInviteLink(token))
+          setCreatedGroupId(data.id)
+          return
+        }
+      }
+
+      router.push(`/group/${data.id}`)
     } finally {
       setLoading(false)
     }
@@ -204,53 +171,53 @@ export default function CreateGroup() {
         </div>
 
         <div className="bg-white rounded-xl p-4 shadow-sm">
-          <label className="block text-sm font-medium text-gray-700 mb-3">Participantes ({participants.length})</label>
+          <label className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              checked={generateInviteOnCreate}
+              onChange={(e) => setGenerateInviteOnCreate(e.target.checked)}
+              className="w-4 h-4 text-[#5BC5A7] border-gray-300 rounded"
+            />
+            <span className="text-sm font-medium text-gray-700 flex items-center gap-2">
+              <UserPlus className="w-4 h-4" />
+              Gerar link de convite ao criar grupo
+            </span>
+          </label>
+        </div>
 
-          <div className="space-y-2 mb-4">
-            {participants.map((participant) => (
-              <div
-                key={participant.id}
-                className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+        {inviteLink && createdGroupId && (
+          <div className="bg-white rounded-xl p-4 shadow-sm space-y-3">
+            <p className="text-sm font-medium text-gray-700">Link de convite gerado</p>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                readOnly
+                value={inviteLink}
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700"
+              />
+              <button
+                type="button"
+                onClick={async () => {
+                  await navigator.clipboard.writeText(inviteLink)
+                }}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100"
               >
-                <span>{participant.name}</span>
-                {participant.id !== SELF_ID && (
-                  <button onClick={() => removeParticipant(participant.id)} type="button">
-                    <X className="w-5 h-5 text-gray-400 hover:text-red-500" />
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-
-          <div className="space-y-2 pt-4 border-t border-gray-200">
-            <input
-              type="text"
-              value={newParticipantName}
-              onChange={(e) => setNewParticipantName(e.target.value)}
-              placeholder="Nome do participante"
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg"
-            />
-            <input
-              type="email"
-              value={newParticipantEmail}
-              onChange={(e) => setNewParticipantEmail(e.target.value)}
-              placeholder="Email (opcional)"
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg"
-            />
+                <Copy className="w-4 h-4" />
+              </button>
+            </div>
             <button
-              onClick={addParticipant}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-[#5BC5A7] text-white rounded-lg"
               type="button"
+              onClick={() => router.push(`/group/${createdGroupId}`)}
+              className="w-full py-3 bg-[#5BC5A7] text-white rounded-xl font-medium"
             >
-              <Plus className="w-4 h-4" />
-              Adicionar participante
+              Ir para o grupo
             </button>
           </div>
-        </div>
+        )}
 
         <button
           onClick={handleCreateGroup}
-          disabled={loading}
+          disabled={loading || Boolean(inviteLink)}
           className="w-full py-4 bg-[#5BC5A7] text-white rounded-xl font-medium"
           type="button"
         >

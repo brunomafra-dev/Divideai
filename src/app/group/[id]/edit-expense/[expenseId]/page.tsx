@@ -37,6 +37,8 @@ export default function EditExpensePage() {
   const expenseId = params.expenseId as string;
 
   const [loading, setLoading] = useState(true);
+  const [currentUserId, setCurrentUserId] = useState<string>("");
+  const [originalPayerId, setOriginalPayerId] = useState<string>("");
 
   const [group, setGroup] = useState<GroupRow | null>(null);
   const [participants, setParticipants] = useState<Participant[]>([]);
@@ -56,6 +58,16 @@ export default function EditExpensePage() {
 
     async function load() {
       setLoading(true);
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session) {
+        router.replace("/login");
+        return;
+      }
+
+      setCurrentUserId(session.user.id);
 
       // load group (to get participants)
       const { data: g, error: gerr } = await supabase
@@ -95,6 +107,7 @@ export default function EditExpensePage() {
         setValue(String(tx.value ?? ""));
         setDescription(tx.description ?? "");
         setPayerId(tx.payer_id ?? "");
+        setOriginalPayerId(tx.payer_id ?? "");
         const participantsFromTx: string[] = Array.isArray(tx.participants)
           ? tx.participants
           : (g?.participants ?? g?.participantsList ?? []).map((p: Participant) => p.id);
@@ -175,6 +188,11 @@ export default function EditExpensePage() {
   }
 
   async function handleUpdate() {
+    if (!currentUserId || !originalPayerId || currentUserId !== originalPayerId) {
+      alert("Somente quem criou o gasto pode editar ou marcar pagamento.");
+      return;
+    }
+
     if (!value || !description || !payerId) {
       alert("Preencha valor, descrição e selecione quem pagou");
       return;
@@ -266,6 +284,7 @@ export default function EditExpensePage() {
 
             <button
               onClick={handleUpdate}
+              disabled={!currentUserId || !originalPayerId || currentUserId !== originalPayerId}
               className="px-3 py-1 rounded-lg bg-[#5BC5A7] text-white flex items-center gap-2"
             >
               <Check className="w-4 h-4" /> Atualizar
@@ -403,4 +422,7 @@ export default function EditExpensePage() {
     </div>
   );
 }
+
+
+
 

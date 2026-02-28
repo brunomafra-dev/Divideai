@@ -9,7 +9,15 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
 
-  const isPublicRoute = pathname === '/login' || pathname === '/signup' || pathname === '/forgot-password'
+  const isInviteRoute = pathname.startsWith('/invite/')
+  const isAuthRoute =
+    pathname === '/login' ||
+    pathname === '/signup' ||
+    pathname === '/register' ||
+    pathname === '/forgot-password' ||
+    pathname === '/reset-password'
+
+  const isPublicRoute = isAuthRoute || isInviteRoute
 
   useEffect(() => {
     if (loading) return
@@ -20,10 +28,10 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     }
 
     // Se tem usuário e está em rota pública, redireciona para home
-    if (user && isPublicRoute) {
+    if (user && isAuthRoute) {
       router.replace('/')
     }
-  }, [user, loading, isPublicRoute, router, pathname])
+  }, [user, loading, isPublicRoute, isAuthRoute, router, pathname])
 
   // Mostrar loading enquanto verifica sessão
   if (loading) {
@@ -40,7 +48,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   }
 
   // Se tem usuário e está em rota pública, não renderiza nada (vai redirecionar)
-  if (user && isPublicRoute) {
+  if (user && isAuthRoute) {
     return null
   }
 

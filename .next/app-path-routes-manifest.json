@@ -3,6 +3,7 @@
   "/_not-found/page": "/_not-found",
   "/activity/page": "/activity",
   "/create-group/page": "/create-group",
+  "/forgot-password/page": "/forgot-password",
   "/friends/page": "/friends",
   "/group/[id]/add-expense/page": "/group/[id]/add-expense",
   "/group/[id]/edit-expense/[expenseId]/page": "/group/[id]/edit-expense/[expenseId]",
@@ -14,11 +15,13 @@
   "/groups/create/page": "/groups/create",
   "/groups/page": "/groups",
   "/icon.svg/route": "/icon.svg",
+  "/invite/[token]/page": "/invite/[token]",
   "/login/page": "/login",
   "/page": "/",
   "/payments/page": "/payments",
   "/profile/page": "/profile",
   "/register/page": "/register",
+  "/reset-password/page": "/reset-password",
   "/settings/page": "/settings",
   "/signup/page": "/signup"
 }

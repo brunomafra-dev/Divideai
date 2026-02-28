@@ -14,11 +14,12 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  // Verificar se já está logado ao carregar a página
   useEffect(() => {
     const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session) {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (user) {
         router.replace('/')
       }
     }
@@ -31,27 +32,28 @@ export default function LoginPage() {
     setError('')
 
     try {
-      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+      const { error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
 
       if (signInError) throw signInError
 
-      // Validar que a sessão foi criada
       const { data: sessionData } = await supabase.auth.getSession()
-      
       if (!sessionData.session) {
-        throw new Error('Sessão não foi criada. Tente novamente.')
+        throw new Error('Sessao nao foi criada. Tente novamente.')
       }
 
-      // Redirecionar para home
       router.replace('/')
       router.refresh()
-
-    } catch (error: any) {
-      console.error('Erro ao fazer login:', error)
-      setError(error.message || 'Erro ao fazer login. Tente novamente.')
+    } catch (err: any) {
+      const authCode = String(err?.code || '')
+      const authMessage = String(err?.message || '').toLowerCase()
+      if (authCode === 'invalid_credentials' || authMessage.includes('invalid login credentials')) {
+        setError('E-mail ou senha inválidos')
+      } else {
+        setError(err?.message || 'Erro ao fazer login. Tente novamente.')
+      }
     } finally {
       setLoading(false)
     }
@@ -60,13 +62,11 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#5BC5A7] to-[#4AB396] flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        {/* Logo/Header */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2">Divide Aí</h1>
+          <h1 className="text-4xl font-bold text-white mb-2">Divide Ai</h1>
           <p className="text-white/90 text-lg">Divida gastos com facilidade</p>
         </div>
 
-        {/* Login Card */}
         <div className="bg-white rounded-2xl shadow-2xl p-8">
           <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">Entrar</h2>
 
@@ -77,7 +77,6 @@ export default function LoginPage() {
           )}
 
           <form onSubmit={handleLogin} className="space-y-5">
-            {/* Email Input */}
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
                 E-mail
@@ -96,7 +95,6 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* Password Input */}
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
                 Senha
@@ -108,7 +106,7 @@ export default function LoginPage() {
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
+                  placeholder="********"
                   required
                   className="w-full pl-11 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#5BC5A7] focus:border-transparent outline-none transition-all"
                 />
@@ -122,14 +120,12 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* Forgot Password Link */}
             <div className="text-right">
               <Link href="/forgot-password" className="text-sm text-[#5BC5A7] hover:text-[#4AB396] transition-colors">
                 Esqueceu a senha?
               </Link>
             </div>
 
-            {/* Submit Button */}
             <button
               type="submit"
               disabled={loading}
@@ -139,7 +135,6 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* Divider */}
           <div className="relative my-6">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-gray-300"></div>
@@ -149,10 +144,9 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* Sign Up Link */}
           <div className="text-center">
             <p className="text-gray-600">
-              Não tem uma conta?{' '}
+              Nao tem uma conta?{' '}
               <Link href="/signup" className="text-[#5BC5A7] font-medium hover:text-[#4AB396] transition-colors">
                 Cadastre-se
               </Link>
@@ -160,9 +154,8 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* Footer */}
         <p className="text-center text-white/80 text-sm mt-6">
-          Ao continuar, você concorda com nossos Termos de Uso
+          Ao continuar, voce concorda com nossos Termos de Uso
         </p>
       </div>
     </div>

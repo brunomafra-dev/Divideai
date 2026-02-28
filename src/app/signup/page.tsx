@@ -3,11 +3,22 @@
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
-import { Eye, EyeOff, Mail, Lock, User } from 'lucide-react'
+import { Eye, EyeOff, Mail, Lock, User, AtSign } from 'lucide-react'
 import { getAuthRedirectUrl } from '@/lib/site-url'
+import { ensureProfileForUser, savePendingProfileSeed } from '@/lib/profiles'
+
+function normalizeUsername(raw: string) {
+  return raw
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '')
+}
 
 export default function SignUpPage() {
-  const [name, setName] = useState('')
+  const [username, setUsername] = useState('')
+  const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -15,11 +26,63 @@ export default function SignUpPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [usernameStatus, setUsernameStatus] = useState<'idle' | 'available' | 'taken'>('idle')
+  const [checkingUsername, setCheckingUsername] = useState(false)
+
+  const checkUsernameAvailability = async (rawValue?: string) => {
+    const candidate = normalizeUsername(rawValue ?? username)
+    if (!candidate) {
+      setUsernameStatus('idle')
+      return false
+    }
+
+    setCheckingUsername(true)
+    try {
+      const { data, error: availabilityError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('username', candidate)
+        .maybeSingle()
+
+      if (availabilityError) {
+        setUsernameStatus('idle')
+        return true
+      }
+
+      const available = !data
+      setUsernameStatus(available ? 'available' : 'taken')
+      return available
+    } finally {
+      setCheckingUsername(false)
+    }
+  }
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError('')
+
+    const cleanUsername = normalizeUsername(username)
+    const cleanFullName = fullName.trim()
+
+    if (!cleanUsername) {
+      setError('Username invalido. Use letras, numeros e underscore.')
+      setLoading(false)
+      return
+    }
+
+    if (!cleanFullName) {
+      setError('Nome completo e obrigatorio')
+      setLoading(false)
+      return
+    }
+
+    const available = await checkUsernameAvailability(cleanUsername)
+    if (!available) {
+      setError('Esse nome de usuario ja esta em uso. Escolha outro.')
+      setLoading(false)
+      return
+    }
 
     if (password !== confirmPassword) {
       setError('As senhas nao coincidem')
@@ -42,12 +105,45 @@ export default function SignUpPage() {
         options: {
           emailRedirectTo: redirectTo,
           data: {
-            name,
+            username: cleanUsername,
+            full_name: cleanFullName,
           },
         },
       })
 
       if (signUpError) throw signUpError
+      if (!data.user) throw new Error('Nao foi possivel criar usuario')
+
+      savePendingProfileSeed({
+        userId: data.user.id,
+        username: cleanUsername,
+        fullName: cleanFullName,
+      })
+
+      try {
+        await ensureProfileForUser(data.user, {
+          username: cleanUsername,
+          fullName: cleanFullName,
+        })
+      } catch (profileError: any) {
+        const profileMessage = String(profileError?.message || '').toLowerCase()
+        const profileCode = String(profileError?.code || '')
+        const duplicate = profileCode === '23505' || profileMessage.includes('username_already_taken') || profileMessage.includes('duplicate')
+
+        if (duplicate) {
+          await supabase.auth.signOut()
+          setError('Esse username ja esta em uso. Escolha outro.')
+          setLoading(false)
+          return
+        }
+
+        if (data.session) {
+          await supabase.auth.signOut()
+          setError('Falha ao criar perfil. Tente novamente.')
+          setLoading(false)
+          return
+        }
+      }
 
       if (data.session) {
         window.location.href = '/'
@@ -81,24 +177,6 @@ export default function SignUpPage() {
 
           <form onSubmit={handleSignUp} className="space-y-5">
             <div>
-              <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
-                Nome
-              </label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input
-                  id="name"
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Seu nome"
-                  required
-                  className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#5BC5A7] focus:border-transparent outline-none transition-all"
-                />
-              </div>
-            </div>
-
-            <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
                 E-mail
               </label>
@@ -114,6 +192,59 @@ export default function SignUpPage() {
                   className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#5BC5A7] focus:border-transparent outline-none transition-all"
                 />
               </div>
+            </div>
+
+            <div>
+              <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 mb-2">
+                Nome completo
+              </label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  id="fullName"
+                  type="text"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  placeholder="Seu nome completo"
+                  required
+                  className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#5BC5A7] focus:border-transparent outline-none transition-all"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-2">
+                Nome de usuario
+              </label>
+              <div className="relative">
+                <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  id="username"
+                  type="text"
+                  value={username}
+                  onChange={(e) => {
+                    setUsername(e.target.value)
+                    setUsernameStatus('idle')
+                  }}
+                  onBlur={() => {
+                    if (username.trim()) {
+                      void checkUsernameAvailability()
+                    }
+                  }}
+                  placeholder="seu_usuario"
+                  required
+                  className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#5BC5A7] focus:border-transparent outline-none transition-all"
+                />
+              </div>
+              <p className="text-xs mt-2 text-gray-500">
+                {checkingUsername
+                  ? 'Verificando disponibilidade...'
+                  : usernameStatus === 'available'
+                    ? 'Nome de usuario disponivel'
+                    : usernameStatus === 'taken'
+                      ? 'Nome de usuario indisponivel'
+                      : 'Use letras, numeros e underscore'}
+              </p>
             </div>
 
             <div>

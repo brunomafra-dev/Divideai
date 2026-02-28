@@ -54,6 +54,7 @@ function GroupSettings() {
     const [saving, setSaving] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])(false);
     const [deleting, setDeleting] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])(false);
     const [currentUserId, setCurrentUserId] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])('');
+    const [isOwner, setIsOwner] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])(false);
     const [groupName, setGroupName] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])('');
     const [category, setCategory] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])('other');
     const [participants, setParticipants] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])([]);
@@ -70,12 +71,28 @@ function GroupSettings() {
                         return;
                     }
                     setCurrentUserId(session.user.id);
-                    const { data, error } = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$supabase$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__["supabase"].from('groups').select('id,name,category,participants').eq('id', groupId).single();
+                    const { data, error } = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$supabase$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__["supabase"].from('groups').select('id,name,category,owner_id,participants').eq('id', groupId).single();
                     if (error || !data) {
                         console.error('group.settings-load-error', error);
                         router.replace(`/group/${groupId}`);
                         return;
                     }
+                    let { data: meRole } = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$supabase$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__["supabase"].from('participants').select('role').eq('group_id', groupId).eq('user_id', session.user.id).maybeSingle();
+                    if (!meRole && String(data.owner_id || '') === session.user.id) {
+                        const { error: ownerInsertError } = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$supabase$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__["supabase"].from('participants').insert({
+                            group_id: groupId,
+                            user_id: session.user.id,
+                            role: 'owner'
+                        });
+                        if (ownerInsertError && ownerInsertError.code !== '23505') {
+                            console.error('group.settings-owner-participant-repair-error', ownerInsertError);
+                        } else {
+                            const { data: repairedRole } = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$supabase$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__["supabase"].from('participants').select('role').eq('group_id', groupId).eq('user_id', session.user.id).maybeSingle();
+                            meRole = repairedRole;
+                        }
+                    }
+                    const owner = String(meRole?.role || '') === 'owner';
+                    setIsOwner(owner);
                     setGroupName(data.name || '');
                     setCategory(data.category || 'other');
                     const loadedParticipants = Array.isArray(data.participants) ? data.participants : [];
@@ -109,6 +126,10 @@ function GroupSettings() {
         setParticipants((prev)=>prev.filter((p)=>p.id !== id));
     };
     const handleSave = async ()=>{
+        if (!isOwner) {
+            alert('Somente o dono pode editar o grupo');
+            return;
+        }
         const trimmedName = groupName.trim();
         if (!trimmedName || participants.length < 2) {
             alert('Adicione um nome e pelo menos 2 participantes');
@@ -146,6 +167,10 @@ function GroupSettings() {
         router.push(`/group/${groupId}`);
     };
     const handleDeleteGroup = async ()=>{
+        if (!isOwner) {
+            alert('Somente o dono pode excluir o grupo');
+            return;
+        }
         const confirmed = confirm('Tem certeza que deseja excluir este grupo? Esta acao nao pode ser desfeita.');
         if (!confirmed) return;
         setDeleting(true);
@@ -203,12 +228,12 @@ function GroupSettings() {
                 children: "Carregando..."
             }, void 0, false, {
                 fileName: "[project]/src/app/group/[id]/settings/page.tsx",
-                lineNumber: 222,
+                lineNumber: 264,
                 columnNumber: 9
             }, this)
         }, void 0, false, {
             fileName: "[project]/src/app/group/[id]/settings/page.tsx",
-            lineNumber: 221,
+            lineNumber: 263,
             columnNumber: 7
         }, this);
     }
@@ -229,17 +254,17 @@ function GroupSettings() {
                                     className: "w-6 h-6"
                                 }, void 0, false, {
                                     fileName: "[project]/src/app/group/[id]/settings/page.tsx",
-                                    lineNumber: 233,
+                                    lineNumber: 275,
                                     columnNumber: 15
                                 }, this)
                             }, void 0, false, {
                                 fileName: "[project]/src/app/group/[id]/settings/page.tsx",
-                                lineNumber: 232,
+                                lineNumber: 274,
                                 columnNumber: 13
                             }, this)
                         }, void 0, false, {
                             fileName: "[project]/src/app/group/[id]/settings/page.tsx",
-                            lineNumber: 231,
+                            lineNumber: 273,
                             columnNumber: 11
                         }, this),
                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("h1", {
@@ -247,29 +272,29 @@ function GroupSettings() {
                             children: "Editar grupo"
                         }, void 0, false, {
                             fileName: "[project]/src/app/group/[id]/settings/page.tsx",
-                            lineNumber: 236,
+                            lineNumber: 278,
                             columnNumber: 11
                         }, this),
                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
                             onClick: handleSave,
                             className: "text-[#5BC5A7] font-medium hover:text-[#4AB396]",
-                            disabled: saving,
+                            disabled: saving || !isOwner,
                             type: "button",
                             children: saving ? 'Salvando...' : 'Salvar'
                         }, void 0, false, {
                             fileName: "[project]/src/app/group/[id]/settings/page.tsx",
-                            lineNumber: 237,
+                            lineNumber: 279,
                             columnNumber: 11
                         }, this)
                     ]
                 }, void 0, true, {
                     fileName: "[project]/src/app/group/[id]/settings/page.tsx",
-                    lineNumber: 230,
+                    lineNumber: 272,
                     columnNumber: 9
                 }, this)
             }, void 0, false, {
                 fileName: "[project]/src/app/group/[id]/settings/page.tsx",
-                lineNumber: 229,
+                lineNumber: 271,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("main", {
@@ -283,7 +308,7 @@ function GroupSettings() {
                                 children: "Nome do grupo"
                             }, void 0, false, {
                                 fileName: "[project]/src/app/group/[id]/settings/page.tsx",
-                                lineNumber: 250,
+                                lineNumber: 292,
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
@@ -291,16 +316,17 @@ function GroupSettings() {
                                 value: groupName,
                                 onChange: (e)=>setGroupName(e.target.value),
                                 placeholder: "Ex: Viagem para Praia",
+                                disabled: !isOwner,
                                 className: "w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#5BC5A7]"
                             }, void 0, false, {
                                 fileName: "[project]/src/app/group/[id]/settings/page.tsx",
-                                lineNumber: 251,
+                                lineNumber: 293,
                                 columnNumber: 11
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/src/app/group/[id]/settings/page.tsx",
-                        lineNumber: 249,
+                        lineNumber: 291,
                         columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -311,13 +337,14 @@ function GroupSettings() {
                                 children: "Categoria"
                             }, void 0, false, {
                                 fileName: "[project]/src/app/group/[id]/settings/page.tsx",
-                                lineNumber: 261,
+                                lineNumber: 304,
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                                 className: "grid grid-cols-4 gap-3",
                                 children: categories.map((cat)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
                                         onClick: ()=>setCategory(cat.id),
+                                        disabled: !isOwner,
                                         className: `flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all ${category === cat.id ? 'border-[#5BC5A7] bg-green-50' : 'border-gray-200 hover:border-gray-300'}`,
                                         type: "button",
                                         children: [
@@ -326,7 +353,7 @@ function GroupSettings() {
                                                 children: cat.icon
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/group/[id]/settings/page.tsx",
-                                                lineNumber: 272,
+                                                lineNumber: 316,
                                                 columnNumber: 17
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
@@ -334,24 +361,24 @@ function GroupSettings() {
                                                 children: cat.label
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/group/[id]/settings/page.tsx",
-                                                lineNumber: 273,
+                                                lineNumber: 317,
                                                 columnNumber: 17
                                             }, this)
                                         ]
                                     }, cat.id, true, {
                                         fileName: "[project]/src/app/group/[id]/settings/page.tsx",
-                                        lineNumber: 264,
+                                        lineNumber: 307,
                                         columnNumber: 15
                                     }, this))
                             }, void 0, false, {
                                 fileName: "[project]/src/app/group/[id]/settings/page.tsx",
-                                lineNumber: 262,
+                                lineNumber: 305,
                                 columnNumber: 11
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/src/app/group/[id]/settings/page.tsx",
-                        lineNumber: 260,
+                        lineNumber: 303,
                         columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -366,7 +393,7 @@ function GroupSettings() {
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/src/app/group/[id]/settings/page.tsx",
-                                lineNumber: 280,
+                                lineNumber: 324,
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -381,7 +408,7 @@ function GroupSettings() {
                                                         children: participant.name
                                                     }, void 0, false, {
                                                         fileName: "[project]/src/app/group/[id]/settings/page.tsx",
-                                                        lineNumber: 286,
+                                                        lineNumber: 330,
                                                         columnNumber: 19
                                                     }, this),
                                                     participant.email && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -389,39 +416,39 @@ function GroupSettings() {
                                                         children: participant.email
                                                     }, void 0, false, {
                                                         fileName: "[project]/src/app/group/[id]/settings/page.tsx",
-                                                        lineNumber: 287,
+                                                        lineNumber: 331,
                                                         columnNumber: 41
                                                     }, this)
                                                 ]
                                             }, void 0, true, {
                                                 fileName: "[project]/src/app/group/[id]/settings/page.tsx",
-                                                lineNumber: 285,
+                                                lineNumber: 329,
                                                 columnNumber: 17
                                             }, this),
-                                            participant.id !== currentUserId && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                                            isOwner && participant.id !== currentUserId && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
                                                 onClick: ()=>removeParticipant(participant.id),
                                                 type: "button",
                                                 children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$x$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__X$3e$__["X"], {
                                                     className: "w-5 h-5 text-gray-400 hover:text-red-500"
                                                 }, void 0, false, {
                                                     fileName: "[project]/src/app/group/[id]/settings/page.tsx",
-                                                    lineNumber: 291,
+                                                    lineNumber: 335,
                                                     columnNumber: 21
                                                 }, this)
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/group/[id]/settings/page.tsx",
-                                                lineNumber: 290,
+                                                lineNumber: 334,
                                                 columnNumber: 19
                                             }, this)
                                         ]
                                     }, participant.id, true, {
                                         fileName: "[project]/src/app/group/[id]/settings/page.tsx",
-                                        lineNumber: 284,
+                                        lineNumber: 328,
                                         columnNumber: 15
                                     }, this))
                             }, void 0, false, {
                                 fileName: "[project]/src/app/group/[id]/settings/page.tsx",
-                                lineNumber: 282,
+                                lineNumber: 326,
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -432,10 +459,11 @@ function GroupSettings() {
                                         value: newParticipantName,
                                         onChange: (e)=>setNewParticipantName(e.target.value),
                                         placeholder: "Nome do participante",
+                                        disabled: !isOwner,
                                         className: "w-full px-4 py-2 border border-gray-200 rounded-lg"
                                     }, void 0, false, {
                                         fileName: "[project]/src/app/group/[id]/settings/page.tsx",
-                                        lineNumber: 299,
+                                        lineNumber: 343,
                                         columnNumber: 13
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
@@ -443,14 +471,16 @@ function GroupSettings() {
                                         value: newParticipantEmail,
                                         onChange: (e)=>setNewParticipantEmail(e.target.value),
                                         placeholder: "Email (opcional)",
+                                        disabled: !isOwner,
                                         className: "w-full px-4 py-2 border border-gray-200 rounded-lg"
                                     }, void 0, false, {
                                         fileName: "[project]/src/app/group/[id]/settings/page.tsx",
-                                        lineNumber: 306,
+                                        lineNumber: 351,
                                         columnNumber: 13
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
                                         onClick: addParticipant,
+                                        disabled: !isOwner,
                                         className: "w-full flex items-center justify-center gap-2 px-4 py-2 bg-[#5BC5A7] text-white rounded-lg",
                                         type: "button",
                                         children: [
@@ -458,29 +488,29 @@ function GroupSettings() {
                                                 className: "w-4 h-4"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/group/[id]/settings/page.tsx",
-                                                lineNumber: 318,
+                                                lineNumber: 365,
                                                 columnNumber: 15
                                             }, this),
                                             "Adicionar participante"
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/src/app/group/[id]/settings/page.tsx",
-                                        lineNumber: 313,
+                                        lineNumber: 359,
                                         columnNumber: 13
                                     }, this)
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/src/app/group/[id]/settings/page.tsx",
-                                lineNumber: 298,
+                                lineNumber: 342,
                                 columnNumber: 11
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/src/app/group/[id]/settings/page.tsx",
-                        lineNumber: 279,
+                        lineNumber: 323,
                         columnNumber: 9
                     }, this),
-                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                    isOwner && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                         className: "bg-white rounded-xl p-4 shadow-sm border-2 border-red-100",
                         children: [
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("h3", {
@@ -488,8 +518,8 @@ function GroupSettings() {
                                 children: "Zona de perigo"
                             }, void 0, false, {
                                 fileName: "[project]/src/app/group/[id]/settings/page.tsx",
-                                lineNumber: 325,
-                                columnNumber: 11
+                                lineNumber: 373,
+                                columnNumber: 13
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
                                 onClick: handleDeleteGroup,
@@ -501,43 +531,43 @@ function GroupSettings() {
                                         className: "w-4 h-4"
                                     }, void 0, false, {
                                         fileName: "[project]/src/app/group/[id]/settings/page.tsx",
-                                        lineNumber: 332,
-                                        columnNumber: 13
+                                        lineNumber: 380,
+                                        columnNumber: 15
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
                                         className: "font-medium",
                                         children: deleting ? 'Excluindo...' : 'Excluir grupo'
                                     }, void 0, false, {
                                         fileName: "[project]/src/app/group/[id]/settings/page.tsx",
-                                        lineNumber: 333,
-                                        columnNumber: 13
+                                        lineNumber: 381,
+                                        columnNumber: 15
                                     }, this)
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/src/app/group/[id]/settings/page.tsx",
-                                lineNumber: 326,
-                                columnNumber: 11
+                                lineNumber: 374,
+                                columnNumber: 13
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/src/app/group/[id]/settings/page.tsx",
-                        lineNumber: 324,
-                        columnNumber: 9
+                        lineNumber: 372,
+                        columnNumber: 11
                     }, this)
                 ]
             }, void 0, true, {
                 fileName: "[project]/src/app/group/[id]/settings/page.tsx",
-                lineNumber: 248,
+                lineNumber: 290,
                 columnNumber: 7
             }, this)
         ]
     }, void 0, true, {
         fileName: "[project]/src/app/group/[id]/settings/page.tsx",
-        lineNumber: 228,
+        lineNumber: 270,
         columnNumber: 5
     }, this);
 }
-_s(GroupSettings, "At92qPT1yUmO8jDr4WgH6w1rDUI=", false, function() {
+_s(GroupSettings, "msc+WuKMpEqZ+ZlsV9FmBJDz1CI=", false, function() {
     return [
         __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$navigation$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useParams"],
         __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$navigation$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useRouter"]

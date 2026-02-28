@@ -26,7 +26,7 @@ function BottomNav() {
     return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("nav", {
         className: "fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 safe-area-bottom z-50",
         children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-            className: "max-w-4xl mx-auto px-4 py-3 flex justify-around items-center",
+            className: "max-w-4xl mx-auto px-4 py-3 flex justify-around items-center min-h-[72px]",
             children: [
                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$client$2f$app$2d$dir$2f$link$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["default"], {
                     href: "/",
@@ -257,9 +257,11 @@ var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist
 var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$navigation$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/node_modules/next/navigation.js [app-client] (ecmascript)");
 var __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$supabase$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/src/lib/supabase.ts [app-client] (ecmascript)");
 var __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$components$2f$ui$2f$bottom$2d$nav$2e$tsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/src/components/ui/bottom-nav.tsx [app-client] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$profiles$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/src/lib/profiles.ts [app-client] (ecmascript)");
 ;
 var _s = __turbopack_context__.k.signature();
 'use client';
+;
 ;
 ;
 ;
@@ -297,12 +299,12 @@ function Home() {
                             className: "w-full h-full rounded-full object-cover"
                         }, void 0, false, {
                             fileName: "[project]/src/app/page.tsx",
-                            lineNumber: 70,
+                            lineNumber: 69,
                             columnNumber: 15
                         }, this) : getInitials(member.name)
                     }, member.id, false, {
                         fileName: "[project]/src/app/page.tsx",
-                        lineNumber: 62,
+                        lineNumber: 61,
                         columnNumber: 11
                     }, this)),
                 remaining > 0 && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -317,13 +319,13 @@ function Home() {
                     ]
                 }, void 0, true, {
                     fileName: "[project]/src/app/page.tsx",
-                    lineNumber: 82,
-                    columnNumber: 3
+                    lineNumber: 81,
+                    columnNumber: 11
                 }, this)
             ]
         }, void 0, true, {
             fileName: "[project]/src/app/page.tsx",
-            lineNumber: 60,
+            lineNumber: 59,
             columnNumber: 7
         }, this);
     };
@@ -332,18 +334,16 @@ function Home() {
             const run = {
                 "Home.useEffect.run": async ()=>{
                     setLoading(true);
-                    // ✅ 1) Sessão
                     const { data: { session } } = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$supabase$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__["supabase"].auth.getSession();
                     if (!session) {
+                        setLoading(false);
                         router.replace('/login');
                         return;
                     }
                     const myId = session.user.id;
-                    // ✅ 2) Limpa mocks antigos do localStorage (pra matar os fantasmas de vez)
                     try {
                         localStorage.removeItem('divideai_groups');
                     } catch  {}
-                    // ✅ 3) Carrega grupos
                     const { data: groupRows, error: gErr } = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$supabase$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__["supabase"].from('groups').select('id,name,participants');
                     if (gErr) {
                         console.error('Erro ao carregar groups:', gErr.message);
@@ -352,33 +352,55 @@ function Home() {
                         setLoading(false);
                         return;
                     }
-                    const safeGroups = groupRows || [];
-                    // ✅ 4) Carrega transações (para calcular totalSpent e balance)
-                    // Se teu app tiver MUITA transação, depois otimizamos por group_id IN (...)
-                    const { data: txRows, error: tErr } = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$supabase$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__["supabase"].from('transactions').select('id,group_id,value,payer_id,splits');
+                    let txRows = null;
+                    let tErr = null;
+                    const txWithAll = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$supabase$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__["supabase"].from('transactions').select('id,group_id,value,payer_id,participants,splits,status');
+                    if (txWithAll.error) {
+                        const txWithSplits = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$supabase$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__["supabase"].from('transactions').select('id,group_id,value,payer_id,splits');
+                        if (txWithSplits.error) {
+                            const txMinimal = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$supabase$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__["supabase"].from('transactions').select('id,group_id,value,payer_id');
+                            txRows = txMinimal.data;
+                            tErr = txMinimal.error;
+                        } else {
+                            txRows = txWithSplits.data;
+                            tErr = null;
+                        }
+                    } else {
+                        txRows = txWithAll.data;
+                        tErr = null;
+                    }
                     if (tErr) {
                         console.error('Erro ao carregar transactions:', tErr.message);
                     }
+                    const { data: payRows, error: pErr } = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$supabase$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__["supabase"].from('payments').select('group_id,from_user,to_user,amount');
+                    if (pErr) {
+                        console.error('Erro ao carregar payments:', pErr.message);
+                    }
+                    const safeGroups = groupRows || [];
+                    const hydratedGroups = await Promise.all(safeGroups.map({
+                        "Home.useEffect.run": async (group)=>{
+                            const list = Array.isArray(group.participants) ? group.participants : [];
+                            return {
+                                ...group,
+                                participants: await (0, __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$profiles$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__["hydrateParticipantsWithProfiles"])(list)
+                            };
+                        }
+                    }["Home.useEffect.run"]));
                     const safeTx = (txRows || []).map({
                         "Home.useEffect.run.safeTx": (t)=>({
                                 ...t,
                                 value: Number(t.value) || 0
                             })
                     }["Home.useEffect.run.safeTx"]);
-                    // ✅ 5) Monta UI + calcula saldos
+                    const safePayments = (payRows || []).map({
+                        "Home.useEffect.run.safePayments": (p)=>({
+                                ...p,
+                                amount: Number(p.amount) || 0
+                            })
+                    }["Home.useEffect.run.safePayments"]);
                     let global = 0;
-                    const uiGroups = safeGroups.map({
+                    const uiGroups = hydratedGroups.map({
                         "Home.useEffect.run.uiGroups": (g)=>{
-                            const groupTx = safeTx.filter({
-                                "Home.useEffect.run.uiGroups.groupTx": (tx)=>tx.group_id === g.id
-                            }["Home.useEffect.run.uiGroups.groupTx"]);
-                            const totalSpent = groupTx.reduce({
-                                "Home.useEffect.run.uiGroups.totalSpent": (acc, tx)=>acc + (Number(tx.value) || 0)
-                            }["Home.useEffect.run.uiGroups.totalSpent"], 0);
-                            // participants pode ser:
-                            // - array de objetos [{id,name}]
-                            // - array de ids
-                            // - null
                             const participantsArr = Array.isArray(g.participants) ? g.participants : [];
                             const members = participantsArr.map({
                                 "Home.useEffect.run.uiGroups.members": (p)=>{
@@ -386,55 +408,110 @@ function Home() {
                                     if (typeof p === 'string') return {
                                         id: p,
                                         name: p
-                                    } // fallback tosco
-                                    ;
+                                    };
                                     return {
-                                        id: String(p.id ?? p.user_id ?? p.uid ?? ''),
-                                        name: String(p.name ?? p.email ?? 'Usuário'),
+                                        id: String(p.user_id ?? p.id ?? p.uid ?? ''),
+                                        name: String(p.name ?? p.display_name ?? p.email ?? 'Usuario'),
                                         avatar: p.avatar ?? p.photo_url ?? undefined
                                     };
                                 }
                             }["Home.useEffect.run.uiGroups.members"]).filter(Boolean);
                             const participantsCount = members.length || participantsArr.length || 0;
-                            let paidByMe = 0;
-                            let myShare = 0;
+                            const currentParticipantIds = members.map({
+                                "Home.useEffect.run.uiGroups.currentParticipantIds": (m)=>m.id
+                            }["Home.useEffect.run.uiGroups.currentParticipantIds"]).filter(Boolean);
+                            const groupTx = safeTx.filter({
+                                "Home.useEffect.run.uiGroups.groupTx": (tx)=>tx.group_id === g.id
+                            }["Home.useEffect.run.uiGroups.groupTx"]).map({
+                                "Home.useEffect.run.uiGroups.groupTx": (tx)=>({
+                                        ...tx,
+                                        participants: currentParticipantIds
+                                    })
+                            }["Home.useEffect.run.uiGroups.groupTx"]);
+                            const groupPayments = safePayments.filter({
+                                "Home.useEffect.run.uiGroups.groupPayments": (payment)=>payment.group_id === g.id
+                            }["Home.useEffect.run.uiGroups.groupPayments"]);
+                            const totalSpent = groupTx.reduce({
+                                "Home.useEffect.run.uiGroups.totalSpent": (acc, tx)=>acc + (Number(tx.value) || 0)
+                            }["Home.useEffect.run.uiGroups.totalSpent"], 0);
+                            const pendingByKey = new Map();
                             for (const tx of groupTx){
+                                if (String(tx.status || '').toLowerCase() === 'paid') continue;
+                                const txValue = Number(tx.value) || 0;
+                                if (txValue <= 0) continue;
+                                if (!currentParticipantIds.includes(myId)) continue;
+                                if (currentParticipantIds.length === 0) continue;
+                                const share = txValue / currentParticipantIds.length;
+                                if (share <= 0) continue;
                                 if (String(tx.payer_id) === String(myId)) {
-                                    paidByMe += Number(tx.value) || 0;
-                                }
-                                const splits = tx.splits;
-                                // splits no teu histórico apareceu como { "self": 55, "<uuid>": 125 ...}
-                                // então a prioridade correta é:
-                                // 1) se existir splits[myId]
-                                // 2) senão, se existir splits.self (caso você esteja gravando self como "você")
-                                if (splits && typeof splits === 'object' && !Array.isArray(splits)) {
-                                    if (splits[myId] != null) myShare += Number(splits[myId]) || 0;
-                                    else if (splits.self != null) myShare += Number(splits.self) || 0;
+                                    for (const debtorId of currentParticipantIds.filter({
+                                        "Home.useEffect.run.uiGroups": (pid)=>String(pid) !== String(myId)
+                                    }["Home.useEffect.run.uiGroups"])){
+                                        const key = `${g.id}|${debtorId}|${myId}`;
+                                        pendingByKey.set(key, (pendingByKey.get(key) || 0) + share);
+                                    }
+                                } else {
+                                    const key = `${g.id}|${myId}|${tx.payer_id}`;
+                                    pendingByKey.set(key, (pendingByKey.get(key) || 0) + share);
                                 }
                             }
-                            const balance = paidByMe - myShare;
-                            global += balance;
+                            const paidByKey = new Map();
+                            for (const p of groupPayments){
+                                const key = `${p.group_id}|${p.from_user}|${p.to_user}`;
+                                paidByKey.set(key, (paidByKey.get(key) || 0) + (Number(p.amount) || 0));
+                            }
+                            let pendingBalance = 0;
+                            for (const [key, amount] of pendingByKey.entries()){
+                                const paidAmount = paidByKey.get(key) || 0;
+                                const outstanding = Math.max(0, amount - paidAmount);
+                                if (outstanding <= 0.009) continue;
+                                const [, fromUser, toUser] = key.split('|');
+                                if (String(toUser) === String(myId)) pendingBalance += outstanding;
+                                else if (String(fromUser) === String(myId)) pendingBalance -= outstanding;
+                            }
+                            const normalizedPending = Math.abs(pendingBalance) <= 0.009 ? 0 : Number(pendingBalance.toFixed(2));
+                            global += normalizedPending;
                             return {
                                 id: g.id,
                                 name: g.name,
                                 totalSpent,
-                                balance,
+                                balance: normalizedPending,
                                 participants: participantsCount,
                                 members
                             };
                         }
                     }["Home.useEffect.run.uiGroups"]);
+                    const normalizedGlobal = Math.abs(global) <= 0.009 ? 0 : Number(global.toFixed(2));
                     setGroups(uiGroups);
-                    setTotalBalance(global);
+                    setTotalBalance(normalizedGlobal);
                     setLoading(false);
                 }
             }["Home.useEffect.run"];
             run();
+            const onFocus = {
+                "Home.useEffect.onFocus": ()=>{
+                    run();
+                }
+            }["Home.useEffect.onFocus"];
+            const onVisibilityChange = {
+                "Home.useEffect.onVisibilityChange": ()=>{
+                    if (document.visibilityState === 'visible') {
+                        run();
+                    }
+                }
+            }["Home.useEffect.onVisibilityChange"];
+            window.addEventListener('focus', onFocus);
+            document.addEventListener('visibilitychange', onVisibilityChange);
+            return ({
+                "Home.useEffect": ()=>{
+                    window.removeEventListener('focus', onFocus);
+                    document.removeEventListener('visibilitychange', onVisibilityChange);
+                }
+            })["Home.useEffect"];
         }
     }["Home.useEffect"], [
         router
     ]);
-    // Loading
     if (loading) {
         return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
             className: "min-h-screen bg-[#F7F7F7] flex items-center justify-center",
@@ -443,17 +520,17 @@ function Home() {
                 children: "Carregando..."
             }, void 0, false, {
                 fileName: "[project]/src/app/page.tsx",
-                lineNumber: 217,
+                lineNumber: 297,
                 columnNumber: 9
             }, this)
         }, void 0, false, {
             fileName: "[project]/src/app/page.tsx",
-            lineNumber: 216,
+            lineNumber: 296,
             columnNumber: 7
         }, this);
     }
     return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-        className: "min-h-screen bg-[#F7F7F7] pb-20",
+        className: "min-h-screen bg-[#F7F7F7] flex flex-col overflow-x-hidden",
         children: [
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("header", {
                 className: "bg-white shadow-sm",
@@ -462,10 +539,10 @@ function Home() {
                     children: [
                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("h1", {
                             className: "text-2xl font-bold text-[#5BC5A7]",
-                            children: "Divide Aí"
+                            children: "Divide Ai"
                         }, void 0, false, {
                             fileName: "[project]/src/app/page.tsx",
-                            lineNumber: 227,
+                            lineNumber: 306,
                             columnNumber: 11
                         }, this),
                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$client$2f$app$2d$dir$2f$link$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["default"], {
@@ -476,28 +553,28 @@ function Home() {
                                     className: "w-6 h-6 text-white"
                                 }, void 0, false, {
                                     fileName: "[project]/src/app/page.tsx",
-                                    lineNumber: 230,
+                                    lineNumber: 309,
                                     columnNumber: 15
                                 }, this)
                             }, void 0, false, {
                                 fileName: "[project]/src/app/page.tsx",
-                                lineNumber: 229,
+                                lineNumber: 308,
                                 columnNumber: 13
                             }, this)
                         }, void 0, false, {
                             fileName: "[project]/src/app/page.tsx",
-                            lineNumber: 228,
+                            lineNumber: 307,
                             columnNumber: 11
                         }, this)
                     ]
                 }, void 0, true, {
                     fileName: "[project]/src/app/page.tsx",
-                    lineNumber: 226,
+                    lineNumber: 305,
                     columnNumber: 9
                 }, this)
             }, void 0, false, {
                 fileName: "[project]/src/app/page.tsx",
-                lineNumber: 225,
+                lineNumber: 304,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -512,7 +589,7 @@ function Home() {
                                 children: "Saldo total"
                             }, void 0, false, {
                                 fileName: "[project]/src/app/page.tsx",
-                                lineNumber: 240,
+                                lineNumber: 318,
                                 columnNumber: 13
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -524,7 +601,7 @@ function Home() {
                                             children: "R$ 0,00"
                                         }, void 0, false, {
                                             fileName: "[project]/src/app/page.tsx",
-                                            lineNumber: 244,
+                                            lineNumber: 322,
                                             columnNumber: 19
                                         }, this),
                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
@@ -532,7 +609,7 @@ function Home() {
                                             children: "zerado"
                                         }, void 0, false, {
                                             fileName: "[project]/src/app/page.tsx",
-                                            lineNumber: 245,
+                                            lineNumber: 323,
                                             columnNumber: 19
                                         }, this)
                                     ]
@@ -542,7 +619,7 @@ function Home() {
                                             className: "w-6 h-6 text-[#5BC5A7]"
                                         }, void 0, false, {
                                             fileName: "[project]/src/app/page.tsx",
-                                            lineNumber: 251,
+                                            lineNumber: 327,
                                             columnNumber: 19
                                         }, this),
                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -553,7 +630,7 @@ function Home() {
                                             ]
                                         }, void 0, true, {
                                             fileName: "[project]/src/app/page.tsx",
-                                            lineNumber: 252,
+                                            lineNumber: 328,
                                             columnNumber: 19
                                         }, this),
                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
@@ -561,7 +638,7 @@ function Home() {
                                             children: "te devem"
                                         }, void 0, false, {
                                             fileName: "[project]/src/app/page.tsx",
-                                            lineNumber: 255,
+                                            lineNumber: 329,
                                             columnNumber: 19
                                         }, this)
                                     ]
@@ -571,7 +648,7 @@ function Home() {
                                             className: "w-6 h-6 text-[#FF6B6B]"
                                         }, void 0, false, {
                                             fileName: "[project]/src/app/page.tsx",
-                                            lineNumber: 261,
+                                            lineNumber: 333,
                                             columnNumber: 19
                                         }, this),
                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -582,38 +659,38 @@ function Home() {
                                             ]
                                         }, void 0, true, {
                                             fileName: "[project]/src/app/page.tsx",
-                                            lineNumber: 262,
+                                            lineNumber: 334,
                                             columnNumber: 19
                                         }, this),
                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
                                             className: "text-sm text-[#FF6B6B] bg-red-50 px-3 py-1 rounded-full",
-                                            children: "você deve"
+                                            children: "voce deve"
                                         }, void 0, false, {
                                             fileName: "[project]/src/app/page.tsx",
-                                            lineNumber: 265,
+                                            lineNumber: 335,
                                             columnNumber: 19
                                         }, this)
                                     ]
                                 }, void 0, true)
                             }, void 0, false, {
                                 fileName: "[project]/src/app/page.tsx",
-                                lineNumber: 241,
+                                lineNumber: 319,
                                 columnNumber: 13
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/src/app/page.tsx",
-                        lineNumber: 239,
+                        lineNumber: 317,
                         columnNumber: 11
                     }, this)
                 }, void 0, false, {
                     fileName: "[project]/src/app/page.tsx",
-                    lineNumber: 238,
+                    lineNumber: 316,
                     columnNumber: 9
                 }, this)
             }, void 0, false, {
                 fileName: "[project]/src/app/page.tsx",
-                lineNumber: 237,
+                lineNumber: 315,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -624,29 +701,29 @@ function Home() {
                         className: "bg-gray-100 rounded-lg p-3 text-center border-2 border-dashed border-gray-300",
                         children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
                             className: "text-xs text-gray-500",
-                            children: "Espaço reservado para anúncio"
+                            children: "Espaco reservado para anuncio"
                         }, void 0, false, {
                             fileName: "[project]/src/app/page.tsx",
-                            lineNumber: 279,
+                            lineNumber: 346,
                             columnNumber: 13
                         }, this)
                     }, void 0, false, {
                         fileName: "[project]/src/app/page.tsx",
-                        lineNumber: 278,
+                        lineNumber: 345,
                         columnNumber: 11
                     }, this)
                 }, void 0, false, {
                     fileName: "[project]/src/app/page.tsx",
-                    lineNumber: 277,
+                    lineNumber: 344,
                     columnNumber: 9
                 }, this)
             }, void 0, false, {
                 fileName: "[project]/src/app/page.tsx",
-                lineNumber: 276,
+                lineNumber: 343,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("main", {
-                className: "max-w-4xl mx-auto px-4 py-6",
+                className: "flex-1 overflow-y-auto max-w-4xl w-full mx-auto px-4 py-6 pb-[calc(8rem+env(safe-area-inset-bottom))]",
                 children: groups.length === 0 ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                     className: "text-center py-12",
                     children: [
@@ -656,12 +733,12 @@ function Home() {
                                 className: "w-10 h-10 text-gray-400"
                             }, void 0, false, {
                                 fileName: "[project]/src/app/page.tsx",
-                                lineNumber: 289,
+                                lineNumber: 355,
                                 columnNumber: 15
                             }, this)
                         }, void 0, false, {
                             fileName: "[project]/src/app/page.tsx",
-                            lineNumber: 288,
+                            lineNumber: 354,
                             columnNumber: 13
                         }, this),
                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("h3", {
@@ -669,36 +746,37 @@ function Home() {
                             children: "Nenhum grupo ainda"
                         }, void 0, false, {
                             fileName: "[project]/src/app/page.tsx",
-                            lineNumber: 291,
+                            lineNumber: 357,
                             columnNumber: 13
                         }, this),
                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
                             className: "text-gray-600 mb-6",
-                            children: "Crie seu primeiro grupo para começar a dividir gastos"
+                            children: "Crie seu primeiro grupo para comecar a dividir gastos"
                         }, void 0, false, {
                             fileName: "[project]/src/app/page.tsx",
-                            lineNumber: 292,
+                            lineNumber: 358,
                             columnNumber: 13
                         }, this),
                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$client$2f$app$2d$dir$2f$link$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["default"], {
                             href: "/create-group",
                             children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
                                 className: "bg-[#5BC5A7] text-white px-6 py-3 rounded-lg hover:bg-[#4AB396] transition-colors",
+                                type: "button",
                                 children: "Criar primeiro grupo"
                             }, void 0, false, {
                                 fileName: "[project]/src/app/page.tsx",
-                                lineNumber: 294,
+                                lineNumber: 360,
                                 columnNumber: 15
                             }, this)
                         }, void 0, false, {
                             fileName: "[project]/src/app/page.tsx",
-                            lineNumber: 293,
+                            lineNumber: 359,
                             columnNumber: 13
                         }, this)
                     ]
                 }, void 0, true, {
                     fileName: "[project]/src/app/page.tsx",
-                    lineNumber: 287,
+                    lineNumber: 353,
                     columnNumber: 11
                 }, this) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["Fragment"], {
                     children: [
@@ -710,7 +788,7 @@ function Home() {
                                     children: "Seus grupos"
                                 }, void 0, false, {
                                     fileName: "[project]/src/app/page.tsx",
-                                    lineNumber: 302,
+                                    lineNumber: 368,
                                     columnNumber: 15
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
@@ -722,13 +800,13 @@ function Home() {
                                     ]
                                 }, void 0, true, {
                                     fileName: "[project]/src/app/page.tsx",
-                                    lineNumber: 303,
+                                    lineNumber: 369,
                                     columnNumber: 15
                                 }, this)
                             ]
                         }, void 0, true, {
                             fileName: "[project]/src/app/page.tsx",
-                            lineNumber: 301,
+                            lineNumber: 367,
                             columnNumber: 13
                         }, this),
                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -742,14 +820,14 @@ function Home() {
                                                 className: "flex justify-between items-start mb-3",
                                                 children: [
                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                                        className: "flex-1",
+                                                        className: "flex-1 min-w-0",
                                                         children: [
                                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("h3", {
-                                                                className: "text-lg font-medium text-gray-800 mb-1",
+                                                                className: "text-lg font-medium text-gray-800 mb-1 truncate",
                                                                 children: group.name
                                                             }, void 0, false, {
                                                                 fileName: "[project]/src/app/page.tsx",
-                                                                lineNumber: 314,
+                                                                lineNumber: 380,
                                                                 columnNumber: 25
                                                             }, this),
                                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -763,14 +841,14 @@ function Home() {
                                                                         ]
                                                                     }, void 0, true, {
                                                                         fileName: "[project]/src/app/page.tsx",
-                                                                        lineNumber: 316,
+                                                                        lineNumber: 382,
                                                                         columnNumber: 27
                                                                     }, this),
                                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
                                                                         children: "•"
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/src/app/page.tsx",
-                                                                        lineNumber: 317,
+                                                                        lineNumber: 383,
                                                                         columnNumber: 27
                                                                     }, this),
                                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
@@ -781,29 +859,29 @@ function Home() {
                                                                         ]
                                                                     }, void 0, true, {
                                                                         fileName: "[project]/src/app/page.tsx",
-                                                                        lineNumber: 318,
+                                                                        lineNumber: 384,
                                                                         columnNumber: 27
                                                                     }, this)
                                                                 ]
                                                             }, void 0, true, {
                                                                 fileName: "[project]/src/app/page.tsx",
-                                                                lineNumber: 315,
+                                                                lineNumber: 381,
                                                                 columnNumber: 25
                                                             }, this)
                                                         ]
                                                     }, void 0, true, {
                                                         fileName: "[project]/src/app/page.tsx",
-                                                        lineNumber: 313,
+                                                        lineNumber: 379,
                                                         columnNumber: 23
                                                     }, this),
                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                                        className: "text-right ml-4",
+                                                        className: "text-right ml-4 shrink-0",
                                                         children: group.balance === 0 ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
-                                                            className: "text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full",
-                                                            children: "zerado"
+                                                            className: "text-sm text-[#5BC5A7] bg-green-50 px-3 py-1 rounded-full",
+                                                            children: "pago"
                                                         }, void 0, false, {
                                                             fileName: "[project]/src/app/page.tsx",
-                                                            lineNumber: 324,
+                                                            lineNumber: 390,
                                                             columnNumber: 27
                                                         }, this) : group.balance > 0 ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                                                             className: "text-right",
@@ -813,7 +891,7 @@ function Home() {
                                                                     children: "te devem"
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/src/app/page.tsx",
-                                                                    lineNumber: 327,
+                                                                    lineNumber: 393,
                                                                     columnNumber: 29
                                                                 }, this),
                                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -824,23 +902,23 @@ function Home() {
                                                                     ]
                                                                 }, void 0, true, {
                                                                     fileName: "[project]/src/app/page.tsx",
-                                                                    lineNumber: 328,
+                                                                    lineNumber: 394,
                                                                     columnNumber: 29
                                                                 }, this)
                                                             ]
                                                         }, void 0, true, {
                                                             fileName: "[project]/src/app/page.tsx",
-                                                            lineNumber: 326,
+                                                            lineNumber: 392,
                                                             columnNumber: 27
                                                         }, this) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                                                             className: "text-right",
                                                             children: [
                                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
                                                                     className: "text-xs text-gray-600 mb-1",
-                                                                    children: "você deve"
+                                                                    children: "voce deve"
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/src/app/page.tsx",
-                                                                    lineNumber: 332,
+                                                                    lineNumber: 398,
                                                                     columnNumber: 29
                                                                 }, this),
                                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -851,24 +929,24 @@ function Home() {
                                                                     ]
                                                                 }, void 0, true, {
                                                                     fileName: "[project]/src/app/page.tsx",
-                                                                    lineNumber: 333,
+                                                                    lineNumber: 399,
                                                                     columnNumber: 29
                                                                 }, this)
                                                             ]
                                                         }, void 0, true, {
                                                             fileName: "[project]/src/app/page.tsx",
-                                                            lineNumber: 331,
+                                                            lineNumber: 397,
                                                             columnNumber: 27
                                                         }, this)
                                                     }, void 0, false, {
                                                         fileName: "[project]/src/app/page.tsx",
-                                                        lineNumber: 322,
+                                                        lineNumber: 388,
                                                         columnNumber: 23
                                                     }, this)
                                                 ]
                                             }, void 0, true, {
                                                 fileName: "[project]/src/app/page.tsx",
-                                                lineNumber: 312,
+                                                lineNumber: 378,
                                                 columnNumber: 21
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -876,62 +954,63 @@ function Home() {
                                                 children: renderMemberAvatars(group.members, 4)
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/page.tsx",
-                                                lineNumber: 340,
+                                                lineNumber: 405,
                                                 columnNumber: 21
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/src/app/page.tsx",
-                                        lineNumber: 311,
+                                        lineNumber: 377,
                                         columnNumber: 19
                                     }, this)
                                 }, group.id, false, {
                                     fileName: "[project]/src/app/page.tsx",
-                                    lineNumber: 310,
-                                    columnNumber: 16
+                                    lineNumber: 376,
+                                    columnNumber: 17
                                 }, this))
                         }, void 0, false, {
                             fileName: "[project]/src/app/page.tsx",
-                            lineNumber: 308,
+                            lineNumber: 374,
                             columnNumber: 13
                         }, this)
                     ]
                 }, void 0, true)
             }, void 0, false, {
                 fileName: "[project]/src/app/page.tsx",
-                lineNumber: 285,
+                lineNumber: 351,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$client$2f$app$2d$dir$2f$link$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["default"], {
                 href: "/create-group",
                 children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
-                    className: "fixed bottom-20 right-6 w-16 h-16 bg-[#5BC5A7] rounded-full flex items-center justify-center shadow-lg hover:bg-[#4AB396] transition-all hover:scale-110",
+                    className: "fixed right-6 w-16 h-16 bg-[#5BC5A7] rounded-full flex items-center justify-center shadow-lg hover:bg-[#4AB396] transition-all hover:scale-110 z-40 bottom-[calc(5.5rem+env(safe-area-inset-bottom))]",
+                    type: "button",
                     children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$plus$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__$3c$export__default__as__Plus$3e$__["Plus"], {
                         className: "w-8 h-8 text-white"
                     }, void 0, false, {
                         fileName: "[project]/src/app/page.tsx",
-                        lineNumber: 354,
+                        lineNumber: 418,
                         columnNumber: 11
                     }, this)
                 }, void 0, false, {
                     fileName: "[project]/src/app/page.tsx",
-                    lineNumber: 353,
+                    lineNumber: 417,
                     columnNumber: 9
                 }, this)
             }, void 0, false, {
                 fileName: "[project]/src/app/page.tsx",
-                lineNumber: 352,
+                lineNumber: 416,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$components$2f$ui$2f$bottom$2d$nav$2e$tsx__$5b$app$2d$client$5d$__$28$ecmascript$29$__["default"], {}, void 0, false, {
                 fileName: "[project]/src/app/page.tsx",
-                lineNumber: 359,
+                lineNumber: 422,
                 columnNumber: 7
             }, this)
         ]
     }, void 0, true, {
         fileName: "[project]/src/app/page.tsx",
-        lineNumber: 223,
+        lineNumber: 303,
         columnNumber: 5
     }, this);
 }

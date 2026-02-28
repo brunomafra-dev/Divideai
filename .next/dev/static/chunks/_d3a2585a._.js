@@ -43,19 +43,54 @@ function AddExpense() {
                         router.replace('/login');
                         return;
                     }
-                    const { data, error } = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$supabase$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__["supabase"].from('groups').select('id,name,participants').eq('id', groupId).single();
+                    const { data, error } = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$supabase$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__["supabase"].from('groups').select('id,name').eq('id', groupId).single();
                     if (error || !data) {
                         console.error('add-expense.group-load-error', error);
                         router.replace(`/group/${groupId}`);
                         return;
                     }
-                    const participantsList = Array.isArray(data.participants) ? data.participants : [];
+                    const { data: participantRows, error: participantsError } = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$supabase$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__["supabase"].from('participants').select('user_id').eq('group_id', groupId);
+                    if (participantsError) {
+                        console.error('add-expense.participants-load-error', participantsError);
+                        router.replace(`/group/${groupId}`);
+                        return;
+                    }
+                    const participantIds = (participantRows ?? []).map({
+                        "AddExpense.useEffect.load.participantIds": (row)=>String(row.user_id || '').trim()
+                    }["AddExpense.useEffect.load.participantIds"]).filter(Boolean);
+                    let profileMap = new Map();
+                    if (participantIds.length > 0) {
+                        const { data: profileRows, error: profilesError } = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$supabase$2e$ts__$5b$app$2d$client$5d$__$28$ecmascript$29$__["supabase"].from('profiles').select('id,username,full_name').in('id', participantIds);
+                        if (profilesError) {
+                            console.error('add-expense.profiles-load-error', profilesError);
+                        } else {
+                            for (const row of profileRows ?? []){
+                                const id = String(row.id || '').trim();
+                                if (!id) continue;
+                                profileMap.set(id, {
+                                    username: String(row.username || '').trim(),
+                                    full_name: String(row.full_name || '').trim()
+                                });
+                            }
+                        }
+                    }
+                    const participantsList = participantIds.map({
+                        "AddExpense.useEffect.load.participantsList": (id)=>{
+                            const profile = profileMap.get(id);
+                            return {
+                                id,
+                                name: profile?.username || profile?.full_name || 'Usuario'
+                            };
+                        }
+                    }["AddExpense.useEffect.load.participantsList"]);
                     setGroup({
                         id: data.id,
                         name: data.name,
                         participantsList
                     });
-                    setPayerId(participantsList[0]?.id || session.user.id);
+                    setPayerId(participantsList.some({
+                        "AddExpense.useEffect.load": (p)=>p.id === session.user.id
+                    }["AddExpense.useEffect.load"]) ? session.user.id : participantsList[0]?.id || session.user.id);
                     setSelectedParticipants(participantsList.map({
                         "AddExpense.useEffect.load": (p)=>p.id
                     }["AddExpense.useEffect.load"]));
@@ -126,7 +161,14 @@ function AddExpense() {
                 code: error.code,
                 message: error.message,
                 details: error.details,
-                hint: error.hint
+                hint: error.hint,
+                raw: JSON.stringify(error),
+                payload: {
+                    group_id: groupId,
+                    payer_id: payerId,
+                    participants: participantsForSplit,
+                    value: amountValue
+                }
             });
             alert('Erro ao salvar gasto');
             return;
@@ -141,12 +183,12 @@ function AddExpense() {
                 children: "Carregando..."
             }, void 0, false, {
                 fileName: "[project]/src/app/group/[id]/add-expense/page.tsx",
-                lineNumber: 153,
+                lineNumber: 205,
                 columnNumber: 9
             }, this)
         }, void 0, false, {
             fileName: "[project]/src/app/group/[id]/add-expense/page.tsx",
-            lineNumber: 152,
+            lineNumber: 204,
             columnNumber: 7
         }, this);
     }
@@ -158,12 +200,12 @@ function AddExpense() {
                 children: "Grupo nao encontrado"
             }, void 0, false, {
                 fileName: "[project]/src/app/group/[id]/add-expense/page.tsx",
-                lineNumber: 161,
+                lineNumber: 213,
                 columnNumber: 9
             }, this)
         }, void 0, false, {
             fileName: "[project]/src/app/group/[id]/add-expense/page.tsx",
-            lineNumber: 160,
+            lineNumber: 212,
             columnNumber: 7
         }, this);
     }
@@ -184,17 +226,17 @@ function AddExpense() {
                                     className: "w-6 h-6"
                                 }, void 0, false, {
                                     fileName: "[project]/src/app/group/[id]/add-expense/page.tsx",
-                                    lineNumber: 172,
+                                    lineNumber: 224,
                                     columnNumber: 15
                                 }, this)
                             }, void 0, false, {
                                 fileName: "[project]/src/app/group/[id]/add-expense/page.tsx",
-                                lineNumber: 171,
+                                lineNumber: 223,
                                 columnNumber: 13
                             }, this)
                         }, void 0, false, {
                             fileName: "[project]/src/app/group/[id]/add-expense/page.tsx",
-                            lineNumber: 170,
+                            lineNumber: 222,
                             columnNumber: 11
                         }, this),
                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("h1", {
@@ -202,7 +244,7 @@ function AddExpense() {
                             children: "Adicionar gasto"
                         }, void 0, false, {
                             fileName: "[project]/src/app/group/[id]/add-expense/page.tsx",
-                            lineNumber: 175,
+                            lineNumber: 227,
                             columnNumber: 11
                         }, this),
                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
@@ -213,18 +255,18 @@ function AddExpense() {
                             children: "Salvar"
                         }, void 0, false, {
                             fileName: "[project]/src/app/group/[id]/add-expense/page.tsx",
-                            lineNumber: 176,
+                            lineNumber: 228,
                             columnNumber: 11
                         }, this)
                     ]
                 }, void 0, true, {
                     fileName: "[project]/src/app/group/[id]/add-expense/page.tsx",
-                    lineNumber: 169,
+                    lineNumber: 221,
                     columnNumber: 9
                 }, this)
             }, void 0, false, {
                 fileName: "[project]/src/app/group/[id]/add-expense/page.tsx",
-                lineNumber: 168,
+                lineNumber: 220,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("main", {
@@ -238,7 +280,7 @@ function AddExpense() {
                                 children: "Valor"
                             }, void 0, false, {
                                 fileName: "[project]/src/app/group/[id]/add-expense/page.tsx",
-                                lineNumber: 189,
+                                lineNumber: 241,
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -249,7 +291,7 @@ function AddExpense() {
                                         children: "R$"
                                     }, void 0, false, {
                                         fileName: "[project]/src/app/group/[id]/add-expense/page.tsx",
-                                        lineNumber: 191,
+                                        lineNumber: 243,
                                         columnNumber: 13
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
@@ -261,19 +303,19 @@ function AddExpense() {
                                         className: "text-3xl font-bold text-gray-800 w-40 text-center border-b-2 border-[#5BC5A7] focus:outline-none"
                                     }, void 0, false, {
                                         fileName: "[project]/src/app/group/[id]/add-expense/page.tsx",
-                                        lineNumber: 192,
+                                        lineNumber: 244,
                                         columnNumber: 13
                                     }, this)
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/src/app/group/[id]/add-expense/page.tsx",
-                                lineNumber: 190,
+                                lineNumber: 242,
                                 columnNumber: 11
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/src/app/group/[id]/add-expense/page.tsx",
-                        lineNumber: 188,
+                        lineNumber: 240,
                         columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -284,7 +326,7 @@ function AddExpense() {
                                 children: "Descricao"
                             }, void 0, false, {
                                 fileName: "[project]/src/app/group/[id]/add-expense/page.tsx",
-                                lineNumber: 204,
+                                lineNumber: 256,
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
@@ -295,13 +337,13 @@ function AddExpense() {
                                 className: "w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#5BC5A7] focus:border-transparent"
                             }, void 0, false, {
                                 fileName: "[project]/src/app/group/[id]/add-expense/page.tsx",
-                                lineNumber: 205,
+                                lineNumber: 257,
                                 columnNumber: 11
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/src/app/group/[id]/add-expense/page.tsx",
-                        lineNumber: 203,
+                        lineNumber: 255,
                         columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -312,7 +354,7 @@ function AddExpense() {
                                 children: "Quem pagou?"
                             }, void 0, false, {
                                 fileName: "[project]/src/app/group/[id]/add-expense/page.tsx",
-                                lineNumber: 215,
+                                lineNumber: 267,
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -329,54 +371,44 @@ function AddExpense() {
                                                     children: participant.name.charAt(0).toUpperCase()
                                                 }, void 0, false, {
                                                     fileName: "[project]/src/app/group/[id]/add-expense/page.tsx",
-                                                    lineNumber: 227,
+                                                    lineNumber: 279,
                                                     columnNumber: 19
                                                 }, this)
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/group/[id]/add-expense/page.tsx",
-                                                lineNumber: 226,
+                                                lineNumber: 278,
                                                 columnNumber: 17
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                                                 className: "text-left",
-                                                children: [
-                                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
-                                                        className: "text-sm font-medium text-gray-800",
-                                                        children: participant.name
-                                                    }, void 0, false, {
-                                                        fileName: "[project]/src/app/group/[id]/add-expense/page.tsx",
-                                                        lineNumber: 230,
-                                                        columnNumber: 19
-                                                    }, this),
-                                                    participant.email && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
-                                                        className: "text-xs text-gray-500",
-                                                        children: participant.email
-                                                    }, void 0, false, {
-                                                        fileName: "[project]/src/app/group/[id]/add-expense/page.tsx",
-                                                        lineNumber: 231,
-                                                        columnNumber: 41
-                                                    }, this)
-                                                ]
-                                            }, void 0, true, {
+                                                children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
+                                                    className: "text-sm font-medium text-gray-800",
+                                                    children: participant.name
+                                                }, void 0, false, {
+                                                    fileName: "[project]/src/app/group/[id]/add-expense/page.tsx",
+                                                    lineNumber: 282,
+                                                    columnNumber: 19
+                                                }, this)
+                                            }, void 0, false, {
                                                 fileName: "[project]/src/app/group/[id]/add-expense/page.tsx",
-                                                lineNumber: 229,
+                                                lineNumber: 281,
                                                 columnNumber: 17
                                             }, this)
                                         ]
                                     }, participant.id, true, {
                                         fileName: "[project]/src/app/group/[id]/add-expense/page.tsx",
-                                        lineNumber: 218,
+                                        lineNumber: 270,
                                         columnNumber: 15
                                     }, this))
                             }, void 0, false, {
                                 fileName: "[project]/src/app/group/[id]/add-expense/page.tsx",
-                                lineNumber: 216,
+                                lineNumber: 268,
                                 columnNumber: 11
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/src/app/group/[id]/add-expense/page.tsx",
-                        lineNumber: 214,
+                        lineNumber: 266,
                         columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -387,7 +419,7 @@ function AddExpense() {
                                 children: "Como dividir?"
                             }, void 0, false, {
                                 fileName: "[project]/src/app/group/[id]/add-expense/page.tsx",
-                                lineNumber: 239,
+                                lineNumber: 290,
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -400,7 +432,7 @@ function AddExpense() {
                                         children: "Igual para todos"
                                     }, void 0, false, {
                                         fileName: "[project]/src/app/group/[id]/add-expense/page.tsx",
-                                        lineNumber: 242,
+                                        lineNumber: 293,
                                         columnNumber: 13
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
@@ -410,13 +442,13 @@ function AddExpense() {
                                         children: "Manual"
                                     }, void 0, false, {
                                         fileName: "[project]/src/app/group/[id]/add-expense/page.tsx",
-                                        lineNumber: 251,
+                                        lineNumber: 302,
                                         columnNumber: 13
                                     }, this)
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/src/app/group/[id]/add-expense/page.tsx",
-                                lineNumber: 241,
+                                lineNumber: 292,
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -433,7 +465,7 @@ function AddExpense() {
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/src/app/group/[id]/add-expense/page.tsx",
-                                        lineNumber: 263,
+                                        lineNumber: 314,
                                         columnNumber: 13
                                     }, this),
                                     group.participantsList.map((participant)=>{
@@ -454,12 +486,12 @@ function AddExpense() {
                                                                 children: participant.name.charAt(0).toUpperCase()
                                                             }, void 0, false, {
                                                                 fileName: "[project]/src/app/group/[id]/add-expense/page.tsx",
-                                                                lineNumber: 283,
+                                                                lineNumber: 334,
                                                                 columnNumber: 23
                                                             }, this)
                                                         }, void 0, false, {
                                                             fileName: "[project]/src/app/group/[id]/add-expense/page.tsx",
-                                                            lineNumber: 282,
+                                                            lineNumber: 333,
                                                             columnNumber: 21
                                                         }, this),
                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -467,13 +499,13 @@ function AddExpense() {
                                                             children: participant.name
                                                         }, void 0, false, {
                                                             fileName: "[project]/src/app/group/[id]/add-expense/page.tsx",
-                                                            lineNumber: 285,
+                                                            lineNumber: 336,
                                                             columnNumber: 21
                                                         }, this)
                                                     ]
                                                 }, void 0, true, {
                                                     fileName: "[project]/src/app/group/[id]/add-expense/page.tsx",
-                                                    lineNumber: 281,
+                                                    lineNumber: 332,
                                                     columnNumber: 19
                                                 }, this),
                                                 isSelected && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -484,26 +516,26 @@ function AddExpense() {
                                                     ]
                                                 }, void 0, true, {
                                                     fileName: "[project]/src/app/group/[id]/add-expense/page.tsx",
-                                                    lineNumber: 287,
+                                                    lineNumber: 338,
                                                     columnNumber: 34
                                                 }, this)
                                             ]
                                         }, participant.id, true, {
                                             fileName: "[project]/src/app/group/[id]/add-expense/page.tsx",
-                                            lineNumber: 273,
+                                            lineNumber: 324,
                                             columnNumber: 17
                                         }, this);
                                     })
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/src/app/group/[id]/add-expense/page.tsx",
-                                lineNumber: 262,
+                                lineNumber: 313,
                                 columnNumber: 11
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/src/app/group/[id]/add-expense/page.tsx",
-                        lineNumber: 238,
+                        lineNumber: 289,
                         columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
@@ -514,19 +546,19 @@ function AddExpense() {
                         children: saving ? 'Salvando...' : 'Salvar gasto'
                     }, void 0, false, {
                         fileName: "[project]/src/app/group/[id]/add-expense/page.tsx",
-                        lineNumber: 294,
+                        lineNumber: 345,
                         columnNumber: 9
                     }, this)
                 ]
             }, void 0, true, {
                 fileName: "[project]/src/app/group/[id]/add-expense/page.tsx",
-                lineNumber: 187,
+                lineNumber: 239,
                 columnNumber: 7
             }, this)
         ]
     }, void 0, true, {
         fileName: "[project]/src/app/group/[id]/add-expense/page.tsx",
-        lineNumber: 167,
+        lineNumber: 219,
         columnNumber: 5
     }, this);
 }

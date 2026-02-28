@@ -6,6 +6,8 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import BottomNav from '@/components/ui/bottom-nav'
+import type { BalancePayment, BalanceTransaction } from '@/lib/balance'
+import { fetchGroupMembersMap, type GroupMember } from '@/lib/group-members'
 
 interface Member {
   id: string
@@ -16,18 +18,14 @@ interface Member {
 interface GroupRow {
   id: string
   name: string
-  // Pode vir como jsonb (array) no Supabase:
-  participants?: any
 }
 
-interface TransactionRow {
-  id: string
-  group_id: string
-  value: number
-  payer_id: string
-  // Pode vir como jsonb object: { "self": 55, "<userId>": 20, ... }
+interface TransactionRow extends BalanceTransaction {
   splits?: any
+  status?: string
 }
+
+interface PaymentRow extends BalancePayment {}
 
 interface GroupUI {
   id: string
@@ -78,15 +76,15 @@ export default function Home() {
           </div>
         ))}
 
-     {remaining > 0 && (
-  <div
-    className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 text-xs font-medium border-2 border-white"
-    style={{ zIndex: 0 }}
-    title={`+${remaining}`}
-  >
-    +{remaining}
-  </div>
-)}
+        {remaining > 0 && (
+          <div
+            className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 text-xs font-medium border-2 border-white"
+            style={{ zIndex: 0 }}
+            title={`+${remaining}`}
+          >
+            +{remaining}
+          </div>
+        )}
       </div>
     )
   }
@@ -95,27 +93,25 @@ export default function Home() {
     const run = async () => {
       setLoading(true)
 
-      // ✅ 1) Sessão
       const {
         data: { session },
       } = await supabase.auth.getSession()
 
       if (!session) {
+        setLoading(false)
         router.replace('/login')
         return
       }
 
       const myId = session.user.id
 
-      // ✅ 2) Limpa mocks antigos do localStorage (pra matar os fantasmas de vez)
       try {
         localStorage.removeItem('divideai_groups')
       } catch {}
 
-      // ✅ 3) Carrega grupos
       const { data: groupRows, error: gErr } = await supabase
         .from('groups')
-        .select('id,name,participants')
+        .select('id,name')
 
       if (gErr) {
         console.error('Erro ao carregar groups:', gErr.message)
@@ -125,92 +121,155 @@ export default function Home() {
         return
       }
 
-      const safeGroups: GroupRow[] = (groupRows as any) || []
+      let txRows: any[] | null = null
+      let tErr: any = null
 
-      // ✅ 4) Carrega transações (para calcular totalSpent e balance)
-      // Se teu app tiver MUITA transação, depois otimizamos por group_id IN (...)
-      const { data: txRows, error: tErr } = await supabase
+      const txWithAll = await supabase
         .from('transactions')
-        .select('id,group_id,value,payer_id,splits')
+        .select('id,group_id,value,payer_id,splits,status')
+
+      if (txWithAll.error) {
+        const txWithSplits = await supabase
+          .from('transactions')
+          .select('id,group_id,value,payer_id,splits')
+
+        if (txWithSplits.error) {
+          const txMinimal = await supabase
+            .from('transactions')
+            .select('id,group_id,value,payer_id')
+
+          txRows = txMinimal.data
+          tErr = txMinimal.error
+        } else {
+          txRows = txWithSplits.data
+          tErr = null
+        }
+      } else {
+        txRows = txWithAll.data
+        tErr = null
+      }
 
       if (tErr) {
         console.error('Erro ao carregar transactions:', tErr.message)
       }
+
+      const { data: payRows, error: pErr } = await supabase
+        .from('payments')
+        .select('group_id,from_user,to_user,amount')
+
+      if (pErr) {
+        console.error('Erro ao carregar payments:', pErr.message)
+      }
+
+      const safeGroups: GroupRow[] = (groupRows as any) || []
+      const membersByGroup = await fetchGroupMembersMap(safeGroups.map((group) => group.id))
 
       const safeTx: TransactionRow[] = ((txRows as any) || []).map((t: any) => ({
         ...t,
         value: Number(t.value) || 0,
       }))
 
-      // ✅ 5) Monta UI + calcula saldos
+      const safePayments: PaymentRow[] = ((payRows as any) || []).map((p: any) => ({
+        ...p,
+        amount: Number(p.amount) || 0,
+      }))
+
       let global = 0
 
       const uiGroups: GroupUI[] = safeGroups.map((g) => {
-        const groupTx = safeTx.filter((tx) => tx.group_id === g.id)
+        const members = (membersByGroup.get(g.id) || []) as GroupMember[]
+        const participantsCount = members.length
+        const currentParticipantIds = members.map((m) => m.id).filter(Boolean)
 
+        const groupTx = safeTx
+          .filter((tx) => tx.group_id === g.id)
+          .map((tx) => ({
+            ...tx,
+            participants: currentParticipantIds,
+          }))
+
+        const groupPayments = safePayments.filter((payment) => payment.group_id === g.id)
         const totalSpent = groupTx.reduce((acc, tx) => acc + (Number(tx.value) || 0), 0)
 
-        // participants pode ser:
-        // - array de objetos [{id,name}]
-        // - array de ids
-        // - null
-        const participantsArr: any[] = Array.isArray(g.participants) ? g.participants : []
-        const members: Member[] = participantsArr
-          .map((p: any) => {
-            if (!p) return null
-            if (typeof p === 'string') return { id: p, name: p } // fallback tosco
-            return {
-              id: String(p.id ?? p.user_id ?? p.uid ?? ''),
-              name: String(p.name ?? p.email ?? 'Usuário'),
-              avatar: p.avatar ?? p.photo_url ?? undefined,
-            }
-          })
-          .filter(Boolean) as Member[]
-
-        const participantsCount = members.length || participantsArr.length || 0
-
-        let paidByMe = 0
-        let myShare = 0
-
+        const pendingByKey = new Map<string, number>()
         for (const tx of groupTx) {
+          if (String(tx.status || '').toLowerCase() === 'paid') continue
+          const txValue = Number(tx.value) || 0
+          if (txValue <= 0) continue
+          if (!currentParticipantIds.includes(myId)) continue
+          if (currentParticipantIds.length === 0) continue
+
+          const share = txValue / currentParticipantIds.length
+          if (share <= 0) continue
+
           if (String(tx.payer_id) === String(myId)) {
-            paidByMe += Number(tx.value) || 0
-          }
-
-          const splits = tx.splits
-
-          // splits no teu histórico apareceu como { "self": 55, "<uuid>": 125 ...}
-          // então a prioridade correta é:
-          // 1) se existir splits[myId]
-          // 2) senão, se existir splits.self (caso você esteja gravando self como "você")
-          if (splits && typeof splits === 'object' && !Array.isArray(splits)) {
-            if (splits[myId] != null) myShare += Number(splits[myId]) || 0
-            else if (splits.self != null) myShare += Number(splits.self) || 0
+            for (const debtorId of currentParticipantIds.filter((pid) => String(pid) !== String(myId))) {
+              const key = `${g.id}|${debtorId}|${myId}`
+              pendingByKey.set(key, (pendingByKey.get(key) || 0) + share)
+            }
+          } else {
+            const key = `${g.id}|${myId}|${tx.payer_id}`
+            pendingByKey.set(key, (pendingByKey.get(key) || 0) + share)
           }
         }
 
-        const balance = paidByMe - myShare
-        global += balance
+        const paidByKey = new Map<string, number>()
+        for (const p of groupPayments) {
+          const key = `${p.group_id}|${p.from_user}|${p.to_user}`
+          paidByKey.set(key, (paidByKey.get(key) || 0) + (Number(p.amount) || 0))
+        }
+
+        let pendingBalance = 0
+        for (const [key, amount] of pendingByKey.entries()) {
+          const paidAmount = paidByKey.get(key) || 0
+          const outstanding = Math.max(0, amount - paidAmount)
+          if (outstanding <= 0.009) continue
+
+          const [, fromUser, toUser] = key.split('|')
+          if (String(toUser) === String(myId)) pendingBalance += outstanding
+          else if (String(fromUser) === String(myId)) pendingBalance -= outstanding
+        }
+
+        const normalizedPending = Math.abs(pendingBalance) <= 0.009 ? 0 : Number(pendingBalance.toFixed(2))
+        global += normalizedPending
 
         return {
           id: g.id,
           name: g.name,
           totalSpent,
-          balance,
+          balance: normalizedPending,
           participants: participantsCount,
           members,
         }
       })
 
+      const normalizedGlobal = Math.abs(global) <= 0.009 ? 0 : Number(global.toFixed(2))
       setGroups(uiGroups)
-      setTotalBalance(global)
+      setTotalBalance(normalizedGlobal)
       setLoading(false)
     }
 
     run()
+
+    const onFocus = () => {
+      run()
+    }
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        run()
+      }
+    }
+
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisibilityChange)
+
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
   }, [router])
 
-  // Loading
   if (loading) {
     return (
       <div className="min-h-screen bg-[#F7F7F7] flex items-center justify-center">
@@ -220,11 +279,10 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F7F7F7] pb-20">
-      {/* Header */}
+    <div className="min-h-screen bg-[#F7F7F7] flex flex-col overflow-x-hidden">
       <header className="bg-white shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-[#5BC5A7]">Divide Aí</h1>
+          <h1 className="text-2xl font-bold text-[#5BC5A7]">Divide Ai</h1>
           <Link href="/profile">
             <div className="w-10 h-10 bg-[#5BC5A7] rounded-full flex items-center justify-center cursor-pointer hover:bg-[#4AB396] transition-colors">
               <User className="w-6 h-6 text-white" />
@@ -233,7 +291,6 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Balance Summary */}
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-4xl mx-auto px-4 py-6">
           <div className="text-center">
@@ -242,29 +299,19 @@ export default function Home() {
               {totalBalance === 0 ? (
                 <>
                   <p className="text-3xl font-bold text-gray-800">R$ 0,00</p>
-                  <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
-                    zerado
-                  </span>
+                  <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">zerado</span>
                 </>
               ) : totalBalance > 0 ? (
                 <>
                   <TrendingUp className="w-6 h-6 text-[#5BC5A7]" />
-                  <p className="text-3xl font-bold text-[#5BC5A7]">
-                    R$ {totalBalance.toFixed(2)}
-                  </p>
-                  <span className="text-sm text-[#5BC5A7] bg-green-50 px-3 py-1 rounded-full">
-                    te devem
-                  </span>
+                  <p className="text-3xl font-bold text-[#5BC5A7]">R$ {totalBalance.toFixed(2)}</p>
+                  <span className="text-sm text-[#5BC5A7] bg-green-50 px-3 py-1 rounded-full">te devem</span>
                 </>
               ) : (
                 <>
                   <TrendingDown className="w-6 h-6 text-[#FF6B6B]" />
-                  <p className="text-3xl font-bold text-[#FF6B6B]">
-                    R$ {Math.abs(totalBalance).toFixed(2)}
-                  </p>
-                  <span className="text-sm text-[#FF6B6B] bg-red-50 px-3 py-1 rounded-full">
-                    você deve
-                  </span>
+                  <p className="text-3xl font-bold text-[#FF6B6B]">R$ {Math.abs(totalBalance).toFixed(2)}</p>
+                  <span className="text-sm text-[#FF6B6B] bg-red-50 px-3 py-1 rounded-full">voce deve</span>
                 </>
               )}
             </div>
@@ -272,26 +319,24 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Ad Space Placeholder */}
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-4xl mx-auto px-4 py-3">
           <div className="bg-gray-100 rounded-lg p-3 text-center border-2 border-dashed border-gray-300">
-            <p className="text-xs text-gray-500">Espaço reservado para anúncio</p>
+            <p className="text-xs text-gray-500">Espaco reservado para anuncio</p>
           </div>
         </div>
       </div>
 
-      {/* Groups List */}
-      <main className="max-w-4xl mx-auto px-4 py-6">
+      <main className="flex-1 overflow-y-auto max-w-4xl w-full mx-auto px-4 py-6 pb-[calc(8rem+env(safe-area-inset-bottom))]">
         {groups.length === 0 ? (
           <div className="text-center py-12">
             <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <Plus className="w-10 h-10 text-gray-400" />
             </div>
             <h3 className="text-lg font-medium text-gray-800 mb-2">Nenhum grupo ainda</h3>
-            <p className="text-gray-600 mb-6">Crie seu primeiro grupo para começar a dividir gastos</p>
+            <p className="text-gray-600 mb-6">Crie seu primeiro grupo para comecar a dividir gastos</p>
             <Link href="/create-group">
-              <button className="bg-[#5BC5A7] text-white px-6 py-3 rounded-lg hover:bg-[#4AB396] transition-colors">
+              <button className="bg-[#5BC5A7] text-white px-6 py-3 rounded-lg hover:bg-[#4AB396] transition-colors" type="button">
                 Criar primeiro grupo
               </button>
             </Link>
@@ -307,11 +352,11 @@ export default function Home() {
 
             <div className="space-y-3">
               {groups.map((group) => (
-               <Link key={group.id} href={`/group/${group.id}`}>
+                <Link key={group.id} href={`/group/${group.id}`}>
                   <div className="bg-white rounded-xl p-4 shadow-sm hover:shadow-md transition-all cursor-pointer border border-gray-100">
                     <div className="flex justify-between items-start mb-3">
-                      <div className="flex-1">
-                        <h3 className="text-lg font-medium text-gray-800 mb-1">{group.name}</h3>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-lg font-medium text-gray-800 mb-1 truncate">{group.name}</h3>
                         <div className="flex items-center gap-4 text-sm text-gray-600">
                           <span>{group.participants} {group.participants === 1 ? 'pessoa' : 'pessoas'}</span>
                           <span>•</span>
@@ -319,9 +364,9 @@ export default function Home() {
                         </div>
                       </div>
 
-                      <div className="text-right ml-4">
+                      <div className="text-right ml-4 shrink-0">
                         {group.balance === 0 ? (
-                          <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">zerado</span>
+                          <span className="text-sm text-[#5BC5A7] bg-green-50 px-3 py-1 rounded-full">pago</span>
                         ) : group.balance > 0 ? (
                           <div className="text-right">
                             <p className="text-xs text-gray-600 mb-1">te devem</p>
@@ -329,14 +374,13 @@ export default function Home() {
                           </div>
                         ) : (
                           <div className="text-right">
-                            <p className="text-xs text-gray-600 mb-1">você deve</p>
+                            <p className="text-xs text-gray-600 mb-1">voce deve</p>
                             <p className="text-lg font-semibold text-[#FF6B6B]">R$ {Math.abs(group.balance).toFixed(2)}</p>
                           </div>
                         )}
                       </div>
                     </div>
 
-                    {/* Prévia de Membros */}
                     <div className="pt-3 border-t border-gray-100">
                       {renderMemberAvatars(group.members, 4)}
                     </div>
@@ -348,14 +392,12 @@ export default function Home() {
         )}
       </main>
 
-      {/* Floating Action Button */}
       <Link href="/create-group">
-        <button className="fixed bottom-20 right-6 w-16 h-16 bg-[#5BC5A7] rounded-full flex items-center justify-center shadow-lg hover:bg-[#4AB396] transition-all hover:scale-110">
+        <button className="fixed right-6 w-16 h-16 bg-[#5BC5A7] rounded-full flex items-center justify-center shadow-lg hover:bg-[#4AB396] transition-all hover:scale-110 z-40 bottom-[calc(5.5rem+env(safe-area-inset-bottom))]" type="button">
           <Plus className="w-8 h-8 text-white" />
         </button>
       </Link>
 
-      {/* Bottom Navigation */}
       <BottomNav />
     </div>
   )

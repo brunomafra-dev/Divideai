@@ -9,7 +9,6 @@ import { supabase } from '@/lib/supabase'
 interface Participant {
   id: string
   name: string
-  email?: string
 }
 
 interface Group {
@@ -47,7 +46,7 @@ export default function AddExpense() {
 
       const { data, error } = await supabase
         .from('groups')
-        .select('id,name,participants')
+        .select('id,name')
         .eq('id', groupId)
         .single()
 
@@ -57,7 +56,49 @@ export default function AddExpense() {
         return
       }
 
-      const participantsList: Participant[] = Array.isArray(data.participants) ? data.participants : []
+      const { data: participantRows, error: participantsError } = await supabase
+        .from('participants')
+        .select('user_id')
+        .eq('group_id', groupId)
+
+      if (participantsError) {
+        console.error('add-expense.participants-load-error', participantsError)
+        router.replace(`/group/${groupId}`)
+        return
+      }
+
+      const participantIds = ((participantRows as Array<{ user_id?: string }> | null) ?? [])
+        .map((row) => String(row.user_id || '').trim())
+        .filter(Boolean)
+
+      let profileMap = new Map<string, { username?: string; full_name?: string }>()
+      if (participantIds.length > 0) {
+        const { data: profileRows, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id,username,full_name')
+          .in('id', participantIds)
+
+        if (profilesError) {
+          console.error('add-expense.profiles-load-error', profilesError)
+        } else {
+          for (const row of profileRows ?? []) {
+            const id = String((row as { id?: string }).id || '').trim()
+            if (!id) continue
+            profileMap.set(id, {
+              username: String((row as { username?: string }).username || '').trim(),
+              full_name: String((row as { full_name?: string }).full_name || '').trim(),
+            })
+          }
+        }
+      }
+
+      const participantsList: Participant[] = participantIds.map((id) => {
+        const profile = profileMap.get(id)
+        return {
+          id,
+          name: profile?.username || profile?.full_name || 'Usuario',
+        }
+      })
 
       setGroup({
         id: data.id,
@@ -65,7 +106,11 @@ export default function AddExpense() {
         participantsList,
       })
 
-      setPayerId(participantsList[0]?.id || session.user.id)
+      setPayerId(
+        participantsList.some((p) => p.id === session.user.id)
+          ? session.user.id
+          : (participantsList[0]?.id || session.user.id)
+      )
       setSelectedParticipants(participantsList.map((p) => p.id))
       setLoading(false)
     }
@@ -139,6 +184,13 @@ export default function AddExpense() {
         message: error.message,
         details: error.details,
         hint: error.hint,
+        raw: JSON.stringify(error),
+        payload: {
+          group_id: groupId,
+          payer_id: payerId,
+          participants: participantsForSplit,
+          value: amountValue,
+        },
       })
       alert('Erro ao salvar gasto')
       return
@@ -228,7 +280,6 @@ export default function AddExpense() {
                 </div>
                 <div className="text-left">
                   <p className="text-sm font-medium text-gray-800">{participant.name}</p>
-                  {participant.email && <p className="text-xs text-gray-500">{participant.email}</p>}
                 </div>
               </button>
             ))}

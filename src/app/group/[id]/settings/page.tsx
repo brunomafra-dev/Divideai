@@ -31,6 +31,7 @@ export default function GroupSettings() {
   const [deleting, setDeleting] = useState(false)
 
   const [currentUserId, setCurrentUserId] = useState<string>('')
+  const [isOwner, setIsOwner] = useState(false)
 
   const [groupName, setGroupName] = useState('')
   const [category, setCategory] = useState<Category>('other')
@@ -55,7 +56,7 @@ export default function GroupSettings() {
 
       const { data, error } = await supabase
         .from('groups')
-        .select('id,name,category,participants')
+        .select('id,name,category,owner_id,participants')
         .eq('id', groupId)
         .single()
 
@@ -64,6 +65,37 @@ export default function GroupSettings() {
         router.replace(`/group/${groupId}`)
         return
       }
+
+      let { data: meRole } = await supabase
+        .from('participants')
+        .select('role')
+        .eq('group_id', groupId)
+        .eq('user_id', session.user.id)
+        .maybeSingle()
+
+      if (!meRole && String(data.owner_id || '') === session.user.id) {
+        const { error: ownerInsertError } = await supabase.from('participants').insert({
+          group_id: groupId,
+          user_id: session.user.id,
+          role: 'owner',
+        })
+
+        if (ownerInsertError && ownerInsertError.code !== '23505') {
+          console.error('group.settings-owner-participant-repair-error', ownerInsertError)
+        } else {
+          const { data: repairedRole } = await supabase
+            .from('participants')
+            .select('role')
+            .eq('group_id', groupId)
+            .eq('user_id', session.user.id)
+            .maybeSingle()
+
+          meRole = repairedRole
+        }
+      }
+
+      const owner = String(meRole?.role || '') === 'owner'
+      setIsOwner(owner)
 
       setGroupName(data.name || '')
       setCategory((data.category || 'other') as Category)
@@ -104,6 +136,11 @@ export default function GroupSettings() {
   }
 
   const handleSave = async () => {
+    if (!isOwner) {
+      alert('Somente o dono pode editar o grupo')
+      return
+    }
+
     const trimmedName = groupName.trim()
 
     if (!trimmedName || participants.length < 2) {
@@ -154,6 +191,11 @@ export default function GroupSettings() {
   }
 
   const handleDeleteGroup = async () => {
+    if (!isOwner) {
+      alert('Somente o dono pode excluir o grupo')
+      return
+    }
+
     const confirmed = confirm('Tem certeza que deseja excluir este grupo? Esta acao nao pode ser desfeita.')
     if (!confirmed) return
 
@@ -237,7 +279,7 @@ export default function GroupSettings() {
           <button
             onClick={handleSave}
             className="text-[#5BC5A7] font-medium hover:text-[#4AB396]"
-            disabled={saving}
+            disabled={saving || !isOwner}
             type="button"
           >
             {saving ? 'Salvando...' : 'Salvar'}
@@ -253,6 +295,7 @@ export default function GroupSettings() {
             value={groupName}
             onChange={(e) => setGroupName(e.target.value)}
             placeholder="Ex: Viagem para Praia"
+            disabled={!isOwner}
             className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#5BC5A7]"
           />
         </div>
@@ -264,6 +307,7 @@ export default function GroupSettings() {
               <button
                 key={cat.id}
                 onClick={() => setCategory(cat.id)}
+                disabled={!isOwner}
                 className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all ${
                   category === cat.id ? 'border-[#5BC5A7] bg-green-50' : 'border-gray-200 hover:border-gray-300'
                 }`}
@@ -286,7 +330,7 @@ export default function GroupSettings() {
                   <p className="font-medium text-gray-800">{participant.name}</p>
                   {participant.email && <p className="text-xs text-gray-500">{participant.email}</p>}
                 </div>
-                {participant.id !== currentUserId && (
+                {isOwner && participant.id !== currentUserId && (
                   <button onClick={() => removeParticipant(participant.id)} type="button">
                     <X className="w-5 h-5 text-gray-400 hover:text-red-500" />
                   </button>
@@ -301,6 +345,7 @@ export default function GroupSettings() {
               value={newParticipantName}
               onChange={(e) => setNewParticipantName(e.target.value)}
               placeholder="Nome do participante"
+              disabled={!isOwner}
               className="w-full px-4 py-2 border border-gray-200 rounded-lg"
             />
             <input
@@ -308,10 +353,12 @@ export default function GroupSettings() {
               value={newParticipantEmail}
               onChange={(e) => setNewParticipantEmail(e.target.value)}
               placeholder="Email (opcional)"
+              disabled={!isOwner}
               className="w-full px-4 py-2 border border-gray-200 rounded-lg"
             />
             <button
               onClick={addParticipant}
+              disabled={!isOwner}
               className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-[#5BC5A7] text-white rounded-lg"
               type="button"
             >
@@ -321,18 +368,20 @@ export default function GroupSettings() {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl p-4 shadow-sm border-2 border-red-100">
-          <h3 className="text-sm font-medium text-red-600 mb-3">Zona de perigo</h3>
-          <button
-            onClick={handleDeleteGroup}
-            disabled={deleting}
-            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors border border-red-200 disabled:opacity-60"
-            type="button"
-          >
-            <Trash2 className="w-4 h-4" />
-            <span className="font-medium">{deleting ? 'Excluindo...' : 'Excluir grupo'}</span>
-          </button>
-        </div>
+        {isOwner && (
+          <div className="bg-white rounded-xl p-4 shadow-sm border-2 border-red-100">
+            <h3 className="text-sm font-medium text-red-600 mb-3">Zona de perigo</h3>
+            <button
+              onClick={handleDeleteGroup}
+              disabled={deleting}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors border border-red-200 disabled:opacity-60"
+              type="button"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span className="font-medium">{deleting ? 'Excluindo...' : 'Excluir grupo'}</span>
+            </button>
+          </div>
+        )}
       </main>
     </div>
   )

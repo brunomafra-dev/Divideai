@@ -24,7 +24,7 @@ function BottomNav() {
     return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("nav", {
         className: "fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 safe-area-bottom z-50",
         children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-            className: "max-w-4xl mx-auto px-4 py-3 flex justify-around items-center",
+            className: "max-w-4xl mx-auto px-4 py-3 flex justify-around items-center min-h-[72px]",
             children: [
                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$client$2f$app$2d$dir$2f$link$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["default"], {
                     href: "/",
@@ -246,7 +246,9 @@ var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist
 var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$navigation$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/node_modules/next/navigation.js [app-ssr] (ecmascript)");
 var __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$supabase$2e$ts__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/src/lib/supabase.ts [app-ssr] (ecmascript)");
 var __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$components$2f$ui$2f$bottom$2d$nav$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/src/components/ui/bottom-nav.tsx [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$profiles$2e$ts__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/src/lib/profiles.ts [app-ssr] (ecmascript)");
 'use client';
+;
 ;
 ;
 ;
@@ -293,7 +295,11 @@ function Payments() {
             ascending: false
         });
         if (payError) console.error('payments.payments-load-error', payError);
-        const groups = groupsData || [];
+        const groupsRaw = groupsData || [];
+        const groups = await Promise.all(groupsRaw.map(async (group)=>({
+                ...group,
+                participants: await (0, __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$profiles$2e$ts__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["hydrateParticipantsWithProfiles"])(Array.isArray(group.participants) ? group.participants : [])
+            })));
         const txRows = (txData || []).map((tx)=>({
                 ...tx,
                 value: Number(tx.value) || 0
@@ -306,14 +312,15 @@ function Payments() {
         groups.forEach((g)=>groupMap.set(g.id, g));
         const nameFromGroup = (groupId, userId)=>{
             const list = Array.isArray(groupMap.get(groupId)?.participants) ? groupMap.get(groupId).participants : [];
-            const found = list.find((p)=>String(p?.id ?? '') === String(userId));
-            return found?.name || found?.email || 'Alguem';
+            const found = list.find((p)=>String(p?.user_id ?? p?.id ?? '') === String(userId));
+            return found?.name || found?.display_name || found?.email || 'Alguem';
         };
         const pendingByKey = new Map();
         let computedSelfPaid = 0;
         for (const tx of txRows){
+            if (String(tx.status || '').toLowerCase() === 'paid') continue;
             const groupName = groupMap.get(tx.group_id)?.name || 'Grupo';
-            const participants = Array.isArray(groupMap.get(tx.group_id)?.participants) ? groupMap.get(tx.group_id).participants.map((p)=>String(p.id || '')).filter(Boolean) : [];
+            const participants = Array.isArray(groupMap.get(tx.group_id)?.participants) ? groupMap.get(tx.group_id).participants.map((p)=>String(p.user_id || p.id || '')).filter(Boolean) : [];
             if (!participants.includes(currentUserId)) continue;
             const myShare = participants.length > 0 ? tx.value / participants.length : 0;
             if (myShare > 0) computedSelfPaid += myShare;
@@ -402,7 +409,7 @@ function Payments() {
         load
     ]);
     const handleMarkAsReceived = async (payment)=>{
-        if (!myId || payment.status !== 'pending') return;
+        if (!myId || payment.status !== 'pending' || myId !== payment.toUserId) return;
         setSavingId(payment.id);
         try {
             const { error } = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$supabase$2e$ts__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["supabase"].from('payments').insert({
@@ -489,17 +496,17 @@ function Payments() {
                 children: "Carregando..."
             }, void 0, false, {
                 fileName: "[project]/src/app/payments/page.tsx",
-                lineNumber: 314,
+                lineNumber: 324,
                 columnNumber: 9
             }, this)
         }, void 0, false, {
             fileName: "[project]/src/app/payments/page.tsx",
-            lineNumber: 313,
+            lineNumber: 323,
             columnNumber: 7
         }, this);
     }
     return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-        className: "min-h-screen bg-[#F7F7F7] pb-20",
+        className: "min-h-screen bg-[#F7F7F7] flex flex-col overflow-x-hidden",
         children: [
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("header", {
                 className: "bg-white shadow-sm",
@@ -515,17 +522,17 @@ function Payments() {
                                     className: "w-6 h-6"
                                 }, void 0, false, {
                                     fileName: "[project]/src/app/payments/page.tsx",
-                                    lineNumber: 325,
+                                    lineNumber: 335,
                                     columnNumber: 15
                                 }, this)
                             }, void 0, false, {
                                 fileName: "[project]/src/app/payments/page.tsx",
-                                lineNumber: 324,
+                                lineNumber: 334,
                                 columnNumber: 13
                             }, this)
                         }, void 0, false, {
                             fileName: "[project]/src/app/payments/page.tsx",
-                            lineNumber: 323,
+                            lineNumber: 333,
                             columnNumber: 11
                         }, this),
                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("h1", {
@@ -533,25 +540,25 @@ function Payments() {
                             children: "Pagamentos"
                         }, void 0, false, {
                             fileName: "[project]/src/app/payments/page.tsx",
-                            lineNumber: 328,
+                            lineNumber: 338,
                             columnNumber: 11
                         }, this),
                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                             className: "w-6"
                         }, void 0, false, {
                             fileName: "[project]/src/app/payments/page.tsx",
-                            lineNumber: 329,
+                            lineNumber: 339,
                             columnNumber: 11
                         }, this)
                     ]
                 }, void 0, true, {
                     fileName: "[project]/src/app/payments/page.tsx",
-                    lineNumber: 322,
+                    lineNumber: 332,
                     columnNumber: 9
                 }, this)
             }, void 0, false, {
                 fileName: "[project]/src/app/payments/page.tsx",
-                lineNumber: 321,
+                lineNumber: 331,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -568,7 +575,7 @@ function Payments() {
                                         className: "w-5 h-5 text-[#5BC5A7] mx-auto mb-2"
                                     }, void 0, false, {
                                         fileName: "[project]/src/app/payments/page.tsx",
-                                        lineNumber: 337,
+                                        lineNumber: 347,
                                         columnNumber: 15
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -576,7 +583,7 @@ function Payments() {
                                         children: "Recebido"
                                     }, void 0, false, {
                                         fileName: "[project]/src/app/payments/page.tsx",
-                                        lineNumber: 338,
+                                        lineNumber: 348,
                                         columnNumber: 15
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -584,76 +591,6 @@ function Payments() {
                                         children: [
                                             "R$ ",
                                             totalReceived.toFixed(2)
-                                        ]
-                                    }, void 0, true, {
-                                        fileName: "[project]/src/app/payments/page.tsx",
-                                        lineNumber: 339,
-                                        columnNumber: 15
-                                    }, this)
-                                ]
-                            }, void 0, true, {
-                                fileName: "[project]/src/app/payments/page.tsx",
-                                lineNumber: 336,
-                                columnNumber: 13
-                            }, this),
-                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                className: "bg-red-50 rounded-xl p-4 text-center",
-                                children: [
-                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$trending$2d$down$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__TrendingDown$3e$__["TrendingDown"], {
-                                        className: "w-5 h-5 text-[#FF6B6B] mx-auto mb-2"
-                                    }, void 0, false, {
-                                        fileName: "[project]/src/app/payments/page.tsx",
-                                        lineNumber: 342,
-                                        columnNumber: 15
-                                    }, this),
-                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
-                                        className: "text-xs text-gray-600 mb-1",
-                                        children: "Pago"
-                                    }, void 0, false, {
-                                        fileName: "[project]/src/app/payments/page.tsx",
-                                        lineNumber: 343,
-                                        columnNumber: 15
-                                    }, this),
-                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
-                                        className: "text-lg font-bold text-[#FF6B6B]",
-                                        children: [
-                                            "R$ ",
-                                            totalPaid.toFixed(2)
-                                        ]
-                                    }, void 0, true, {
-                                        fileName: "[project]/src/app/payments/page.tsx",
-                                        lineNumber: 344,
-                                        columnNumber: 15
-                                    }, this)
-                                ]
-                            }, void 0, true, {
-                                fileName: "[project]/src/app/payments/page.tsx",
-                                lineNumber: 341,
-                                columnNumber: 13
-                            }, this),
-                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                                className: "bg-orange-50 rounded-xl p-4 text-center",
-                                children: [
-                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$clock$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Clock$3e$__["Clock"], {
-                                        className: "w-5 h-5 text-orange-500 mx-auto mb-2"
-                                    }, void 0, false, {
-                                        fileName: "[project]/src/app/payments/page.tsx",
-                                        lineNumber: 347,
-                                        columnNumber: 15
-                                    }, this),
-                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
-                                        className: "text-xs text-gray-600 mb-1",
-                                        children: "Pendente"
-                                    }, void 0, false, {
-                                        fileName: "[project]/src/app/payments/page.tsx",
-                                        lineNumber: 348,
-                                        columnNumber: 15
-                                    }, this),
-                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
-                                        className: "text-lg font-bold text-orange-500",
-                                        children: [
-                                            "R$ ",
-                                            totalPending.toFixed(2)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/src/app/payments/page.tsx",
@@ -665,21 +602,91 @@ function Payments() {
                                 fileName: "[project]/src/app/payments/page.tsx",
                                 lineNumber: 346,
                                 columnNumber: 13
+                            }, this),
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                className: "bg-red-50 rounded-xl p-4 text-center",
+                                children: [
+                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$trending$2d$down$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__TrendingDown$3e$__["TrendingDown"], {
+                                        className: "w-5 h-5 text-[#FF6B6B] mx-auto mb-2"
+                                    }, void 0, false, {
+                                        fileName: "[project]/src/app/payments/page.tsx",
+                                        lineNumber: 352,
+                                        columnNumber: 15
+                                    }, this),
+                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
+                                        className: "text-xs text-gray-600 mb-1",
+                                        children: "Pago"
+                                    }, void 0, false, {
+                                        fileName: "[project]/src/app/payments/page.tsx",
+                                        lineNumber: 353,
+                                        columnNumber: 15
+                                    }, this),
+                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
+                                        className: "text-lg font-bold text-[#FF6B6B]",
+                                        children: [
+                                            "R$ ",
+                                            totalPaid.toFixed(2)
+                                        ]
+                                    }, void 0, true, {
+                                        fileName: "[project]/src/app/payments/page.tsx",
+                                        lineNumber: 354,
+                                        columnNumber: 15
+                                    }, this)
+                                ]
+                            }, void 0, true, {
+                                fileName: "[project]/src/app/payments/page.tsx",
+                                lineNumber: 351,
+                                columnNumber: 13
+                            }, this),
+                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                className: "bg-orange-50 rounded-xl p-4 text-center",
+                                children: [
+                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$clock$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Clock$3e$__["Clock"], {
+                                        className: "w-5 h-5 text-orange-500 mx-auto mb-2"
+                                    }, void 0, false, {
+                                        fileName: "[project]/src/app/payments/page.tsx",
+                                        lineNumber: 357,
+                                        columnNumber: 15
+                                    }, this),
+                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
+                                        className: "text-xs text-gray-600 mb-1",
+                                        children: "Pendente"
+                                    }, void 0, false, {
+                                        fileName: "[project]/src/app/payments/page.tsx",
+                                        lineNumber: 358,
+                                        columnNumber: 15
+                                    }, this),
+                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
+                                        className: "text-lg font-bold text-orange-500",
+                                        children: [
+                                            "R$ ",
+                                            totalPending.toFixed(2)
+                                        ]
+                                    }, void 0, true, {
+                                        fileName: "[project]/src/app/payments/page.tsx",
+                                        lineNumber: 359,
+                                        columnNumber: 15
+                                    }, this)
+                                ]
+                            }, void 0, true, {
+                                fileName: "[project]/src/app/payments/page.tsx",
+                                lineNumber: 356,
+                                columnNumber: 13
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/src/app/payments/page.tsx",
-                        lineNumber: 335,
+                        lineNumber: 345,
                         columnNumber: 11
                     }, this)
                 }, void 0, false, {
                     fileName: "[project]/src/app/payments/page.tsx",
-                    lineNumber: 334,
+                    lineNumber: 344,
                     columnNumber: 9
                 }, this)
             }, void 0, false, {
                 fileName: "[project]/src/app/payments/page.tsx",
-                lineNumber: 333,
+                lineNumber: 343,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -696,7 +703,7 @@ function Payments() {
                                 children: "Todos"
                             }, void 0, false, {
                                 fileName: "[project]/src/app/payments/page.tsx",
-                                lineNumber: 358,
+                                lineNumber: 368,
                                 columnNumber: 13
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
@@ -706,7 +713,7 @@ function Payments() {
                                 children: "Pagos"
                             }, void 0, false, {
                                 fileName: "[project]/src/app/payments/page.tsx",
-                                lineNumber: 359,
+                                lineNumber: 369,
                                 columnNumber: 13
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
@@ -716,27 +723,27 @@ function Payments() {
                                 children: "Pendentes"
                             }, void 0, false, {
                                 fileName: "[project]/src/app/payments/page.tsx",
-                                lineNumber: 360,
+                                lineNumber: 370,
                                 columnNumber: 13
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/src/app/payments/page.tsx",
-                        lineNumber: 357,
+                        lineNumber: 367,
                         columnNumber: 11
                     }, this)
                 }, void 0, false, {
                     fileName: "[project]/src/app/payments/page.tsx",
-                    lineNumber: 356,
+                    lineNumber: 366,
                     columnNumber: 9
                 }, this)
             }, void 0, false, {
                 fileName: "[project]/src/app/payments/page.tsx",
-                lineNumber: 355,
+                lineNumber: 365,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("main", {
-                className: "max-w-4xl mx-auto px-4 py-6",
+                className: "flex-1 overflow-y-auto max-w-4xl w-full mx-auto px-4 py-6 pb-[calc(8rem+env(safe-area-inset-bottom))]",
                 children: filteredPayments.length === 0 ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                     className: "text-center py-12",
                     children: [
@@ -746,12 +753,12 @@ function Payments() {
                                 className: "w-10 h-10 text-gray-400"
                             }, void 0, false, {
                                 fileName: "[project]/src/app/payments/page.tsx",
-                                lineNumber: 369,
+                                lineNumber: 379,
                                 columnNumber: 15
                             }, this)
                         }, void 0, false, {
                             fileName: "[project]/src/app/payments/page.tsx",
-                            lineNumber: 368,
+                            lineNumber: 378,
                             columnNumber: 13
                         }, this),
                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("h3", {
@@ -759,7 +766,7 @@ function Payments() {
                             children: "Nenhum pagamento"
                         }, void 0, false, {
                             fileName: "[project]/src/app/payments/page.tsx",
-                            lineNumber: 371,
+                            lineNumber: 381,
                             columnNumber: 13
                         }, this),
                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -767,13 +774,13 @@ function Payments() {
                             children: filter === 'all' ? 'Voce ainda nao tem pagamentos registrados' : filter === 'paid' ? 'Nenhum pagamento concluido' : 'Nenhum pagamento pendente'
                         }, void 0, false, {
                             fileName: "[project]/src/app/payments/page.tsx",
-                            lineNumber: 372,
+                            lineNumber: 382,
                             columnNumber: 13
                         }, this)
                     ]
                 }, void 0, true, {
                     fileName: "[project]/src/app/payments/page.tsx",
-                    lineNumber: 367,
+                    lineNumber: 377,
                     columnNumber: 11
                 }, this) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                     className: "space-y-3",
@@ -789,7 +796,7 @@ function Payments() {
                                                 children: group.groupName
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/payments/page.tsx",
-                                                lineNumber: 379,
+                                                lineNumber: 389,
                                                 columnNumber: 19
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
@@ -797,18 +804,20 @@ function Payments() {
                                                 children: "Pendentes"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/payments/page.tsx",
-                                                lineNumber: 380,
+                                                lineNumber: 390,
                                                 columnNumber: 19
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/src/app/payments/page.tsx",
-                                        lineNumber: 378,
+                                        lineNumber: 388,
                                         columnNumber: 17
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                                         className: "space-y-2",
-                                        children: group.items.map((payment)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                                        children: group.items.map((payment)=>{
+                                            const canMarkAsReceived = myId === payment.toUserId;
+                                            return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                                                 className: "p-3 rounded-lg border border-gray-200 bg-gray-50",
                                                 children: [
                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -825,8 +834,8 @@ function Payments() {
                                                                 ]
                                                             }, void 0, true, {
                                                                 fileName: "[project]/src/app/payments/page.tsx",
-                                                                lineNumber: 386,
-                                                                columnNumber: 25
+                                                                lineNumber: 398,
+                                                                columnNumber: 27
                                                             }, this),
                                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
                                                                 className: "text-sm font-semibold text-gray-800",
@@ -836,28 +845,29 @@ function Payments() {
                                                                 ]
                                                             }, void 0, true, {
                                                                 fileName: "[project]/src/app/payments/page.tsx",
-                                                                lineNumber: 389,
-                                                                columnNumber: 25
+                                                                lineNumber: 401,
+                                                                columnNumber: 27
                                                             }, this)
                                                         ]
                                                     }, void 0, true, {
                                                         fileName: "[project]/src/app/payments/page.tsx",
-                                                        lineNumber: 385,
-                                                        columnNumber: 23
+                                                        lineNumber: 397,
+                                                        columnNumber: 25
                                                     }, this),
                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                                                         className: "grid grid-cols-2 gap-2",
                                                         children: [
                                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
                                                                 onClick: ()=>handleMarkAsReceived(payment),
-                                                                disabled: savingId === payment.id,
-                                                                className: "py-2 bg-[#5BC5A7] text-white rounded-lg font-medium hover:bg-[#4AB396] disabled:opacity-60",
+                                                                disabled: !canMarkAsReceived || savingId === payment.id,
+                                                                className: "py-2 bg-[#5BC5A7] text-white rounded-lg font-medium hover:bg-[#4AB396] disabled:opacity-60 disabled:cursor-not-allowed",
                                                                 type: "button",
+                                                                title: canMarkAsReceived ? 'Marcar como recebido' : 'Somente quem recebeu o pagamento pode confirmar',
                                                                 children: savingId === payment.id ? 'Salvando...' : 'Marcar como recebido'
                                                             }, void 0, false, {
                                                                 fileName: "[project]/src/app/payments/page.tsx",
-                                                                lineNumber: 392,
-                                                                columnNumber: 25
+                                                                lineNumber: 404,
+                                                                columnNumber: 27
                                                             }, this),
                                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
                                                                 onClick: ()=>{
@@ -869,30 +879,31 @@ function Payments() {
                                                                 children: "Cobrar"
                                                             }, void 0, false, {
                                                                 fileName: "[project]/src/app/payments/page.tsx",
-                                                                lineNumber: 400,
-                                                                columnNumber: 25
+                                                                lineNumber: 413,
+                                                                columnNumber: 27
                                                             }, this)
                                                         ]
                                                     }, void 0, true, {
                                                         fileName: "[project]/src/app/payments/page.tsx",
-                                                        lineNumber: 391,
-                                                        columnNumber: 23
+                                                        lineNumber: 403,
+                                                        columnNumber: 25
                                                     }, this)
                                                 ]
                                             }, payment.id, true, {
                                                 fileName: "[project]/src/app/payments/page.tsx",
-                                                lineNumber: 384,
-                                                columnNumber: 21
-                                            }, this))
+                                                lineNumber: 396,
+                                                columnNumber: 23
+                                            }, this);
+                                        })
                                     }, void 0, false, {
                                         fileName: "[project]/src/app/payments/page.tsx",
-                                        lineNumber: 382,
+                                        lineNumber: 392,
                                         columnNumber: 17
                                     }, this)
                                 ]
                             }, group.groupId, true, {
                                 fileName: "[project]/src/app/payments/page.tsx",
-                                lineNumber: 377,
+                                lineNumber: 387,
                                 columnNumber: 15
                             }, this)),
                         paidList.map((payment)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -912,20 +923,20 @@ function Payments() {
                                                                 children: payment.description
                                                             }, void 0, false, {
                                                                 fileName: "[project]/src/app/payments/page.tsx",
-                                                                lineNumber: 422,
+                                                                lineNumber: 436,
                                                                 columnNumber: 23
                                                             }, this),
                                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$circle$2d$check$2d$big$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__CheckCircle$3e$__["CheckCircle"], {
                                                                 className: "w-4 h-4 text-[#5BC5A7]"
                                                             }, void 0, false, {
                                                                 fileName: "[project]/src/app/payments/page.tsx",
-                                                                lineNumber: 423,
+                                                                lineNumber: 437,
                                                                 columnNumber: 23
                                                             }, this)
                                                         ]
                                                     }, void 0, true, {
                                                         fileName: "[project]/src/app/payments/page.tsx",
-                                                        lineNumber: 421,
+                                                        lineNumber: 435,
                                                         columnNumber: 21
                                                     }, this),
                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -939,7 +950,7 @@ function Payments() {
                                                         ]
                                                     }, void 0, true, {
                                                         fileName: "[project]/src/app/payments/page.tsx",
-                                                        lineNumber: 425,
+                                                        lineNumber: 439,
                                                         columnNumber: 21
                                                     }, this),
                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -947,13 +958,13 @@ function Payments() {
                                                         children: payment.groupName
                                                     }, void 0, false, {
                                                         fileName: "[project]/src/app/payments/page.tsx",
-                                                        lineNumber: 426,
+                                                        lineNumber: 440,
                                                         columnNumber: 21
                                                     }, this)
                                                 ]
                                             }, void 0, true, {
                                                 fileName: "[project]/src/app/payments/page.tsx",
-                                                lineNumber: 420,
+                                                lineNumber: 434,
                                                 columnNumber: 19
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -967,7 +978,7 @@ function Payments() {
                                                         ]
                                                     }, void 0, true, {
                                                         fileName: "[project]/src/app/payments/page.tsx",
-                                                        lineNumber: 429,
+                                                        lineNumber: 443,
                                                         columnNumber: 21
                                                     }, this),
                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
@@ -975,19 +986,19 @@ function Payments() {
                                                         children: "Pago"
                                                     }, void 0, false, {
                                                         fileName: "[project]/src/app/payments/page.tsx",
-                                                        lineNumber: 430,
+                                                        lineNumber: 444,
                                                         columnNumber: 21
                                                     }, this)
                                                 ]
                                             }, void 0, true, {
                                                 fileName: "[project]/src/app/payments/page.tsx",
-                                                lineNumber: 428,
+                                                lineNumber: 442,
                                                 columnNumber: 19
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/src/app/payments/page.tsx",
-                                        lineNumber: 419,
+                                        lineNumber: 433,
                                         columnNumber: 17
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -997,7 +1008,7 @@ function Payments() {
                                                 children: new Date(payment.date).toLocaleDateString('pt-BR')
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/payments/page.tsx",
-                                                lineNumber: 434,
+                                                lineNumber: 448,
                                                 columnNumber: 19
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
@@ -1007,30 +1018,30 @@ function Payments() {
                                                 })
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/payments/page.tsx",
-                                                lineNumber: 435,
+                                                lineNumber: 449,
                                                 columnNumber: 19
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/src/app/payments/page.tsx",
-                                        lineNumber: 433,
+                                        lineNumber: 447,
                                         columnNumber: 17
                                     }, this)
                                 ]
                             }, payment.id, true, {
                                 fileName: "[project]/src/app/payments/page.tsx",
-                                lineNumber: 418,
+                                lineNumber: 432,
                                 columnNumber: 15
                             }, this))
                     ]
                 }, void 0, true, {
                     fileName: "[project]/src/app/payments/page.tsx",
-                    lineNumber: 375,
+                    lineNumber: 385,
                     columnNumber: 11
                 }, this)
             }, void 0, false, {
                 fileName: "[project]/src/app/payments/page.tsx",
-                lineNumber: 365,
+                lineNumber: 375,
                 columnNumber: 7
             }, this),
             chargeTarget && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1046,7 +1057,7 @@ function Payments() {
                                     children: "Cobrar pagamento"
                                 }, void 0, false, {
                                     fileName: "[project]/src/app/payments/page.tsx",
-                                    lineNumber: 447,
+                                    lineNumber: 461,
                                     columnNumber: 15
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
@@ -1057,18 +1068,18 @@ function Payments() {
                                         className: "w-5 h-5"
                                     }, void 0, false, {
                                         fileName: "[project]/src/app/payments/page.tsx",
-                                        lineNumber: 449,
+                                        lineNumber: 463,
                                         columnNumber: 17
                                     }, this)
                                 }, void 0, false, {
                                     fileName: "[project]/src/app/payments/page.tsx",
-                                    lineNumber: 448,
+                                    lineNumber: 462,
                                     columnNumber: 15
                                 }, this)
                             ]
                         }, void 0, true, {
                             fileName: "[project]/src/app/payments/page.tsx",
-                            lineNumber: 446,
+                            lineNumber: 460,
                             columnNumber: 13
                         }, this),
                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1081,7 +1092,7 @@ function Payments() {
                                             children: "Grupo:"
                                         }, void 0, false, {
                                             fileName: "[project]/src/app/payments/page.tsx",
-                                            lineNumber: 454,
+                                            lineNumber: 468,
                                             columnNumber: 18
                                         }, this),
                                         " ",
@@ -1090,13 +1101,13 @@ function Payments() {
                                             children: chargeTarget.groupName
                                         }, void 0, false, {
                                             fileName: "[project]/src/app/payments/page.tsx",
-                                            lineNumber: 454,
+                                            lineNumber: 468,
                                             columnNumber: 64
                                         }, this)
                                     ]
                                 }, void 0, true, {
                                     fileName: "[project]/src/app/payments/page.tsx",
-                                    lineNumber: 454,
+                                    lineNumber: 468,
                                     columnNumber: 15
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -1106,7 +1117,7 @@ function Payments() {
                                             children: "Valor:"
                                         }, void 0, false, {
                                             fileName: "[project]/src/app/payments/page.tsx",
-                                            lineNumber: 455,
+                                            lineNumber: 469,
                                             columnNumber: 18
                                         }, this),
                                         " ",
@@ -1118,19 +1129,19 @@ function Payments() {
                                             ]
                                         }, void 0, true, {
                                             fileName: "[project]/src/app/payments/page.tsx",
-                                            lineNumber: 455,
+                                            lineNumber: 469,
                                             columnNumber: 64
                                         }, this)
                                     ]
                                 }, void 0, true, {
                                     fileName: "[project]/src/app/payments/page.tsx",
-                                    lineNumber: 455,
+                                    lineNumber: 469,
                                     columnNumber: 15
                                 }, this)
                             ]
                         }, void 0, true, {
                             fileName: "[project]/src/app/payments/page.tsx",
-                            lineNumber: 453,
+                            lineNumber: 467,
                             columnNumber: 13
                         }, this),
                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1141,7 +1152,7 @@ function Payments() {
                                     children: "Mensagem de cobranca"
                                 }, void 0, false, {
                                     fileName: "[project]/src/app/payments/page.tsx",
-                                    lineNumber: 459,
+                                    lineNumber: 473,
                                     columnNumber: 15
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
@@ -1152,7 +1163,7 @@ function Payments() {
                                     className: "w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mb-2"
                                 }, void 0, false, {
                                     fileName: "[project]/src/app/payments/page.tsx",
-                                    lineNumber: 460,
+                                    lineNumber: 474,
                                     columnNumber: 15
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -1160,13 +1171,13 @@ function Payments() {
                                     children: buildChargeMessage(chargeTarget.groupName, chargeTarget.amount, pixCopyPaste)
                                 }, void 0, false, {
                                     fileName: "[project]/src/app/payments/page.tsx",
-                                    lineNumber: 467,
+                                    lineNumber: 481,
                                     columnNumber: 15
                                 }, this)
                             ]
                         }, void 0, true, {
                             fileName: "[project]/src/app/payments/page.tsx",
-                            lineNumber: 458,
+                            lineNumber: 472,
                             columnNumber: 13
                         }, this),
                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1179,7 +1190,7 @@ function Payments() {
                                     children: "Copiar mensagem"
                                 }, void 0, false, {
                                     fileName: "[project]/src/app/payments/page.tsx",
-                                    lineNumber: 471,
+                                    lineNumber: 485,
                                     columnNumber: 15
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
@@ -1189,28 +1200,28 @@ function Payments() {
                                     children: "Compartilhar"
                                 }, void 0, false, {
                                     fileName: "[project]/src/app/payments/page.tsx",
-                                    lineNumber: 478,
+                                    lineNumber: 492,
                                     columnNumber: 15
                                 }, this)
                             ]
                         }, void 0, true, {
                             fileName: "[project]/src/app/payments/page.tsx",
-                            lineNumber: 470,
+                            lineNumber: 484,
                             columnNumber: 13
                         }, this)
                     ]
                 }, void 0, true, {
                     fileName: "[project]/src/app/payments/page.tsx",
-                    lineNumber: 445,
+                    lineNumber: 459,
                     columnNumber: 11
                 }, this)
             }, void 0, false, {
                 fileName: "[project]/src/app/payments/page.tsx",
-                lineNumber: 444,
+                lineNumber: 458,
                 columnNumber: 9
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                className: "max-w-4xl mx-auto px-4 py-4",
+                className: "max-w-4xl w-full mx-auto px-4 py-4",
                 children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                     className: "bg-gray-100 rounded-xl p-4 text-center border-2 border-dashed border-gray-300",
                     children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -1218,28 +1229,28 @@ function Payments() {
                         children: "Espaco reservado para anuncio"
                     }, void 0, false, {
                         fileName: "[project]/src/app/payments/page.tsx",
-                        lineNumber: 492,
+                        lineNumber: 506,
                         columnNumber: 11
                     }, this)
                 }, void 0, false, {
                     fileName: "[project]/src/app/payments/page.tsx",
-                    lineNumber: 491,
+                    lineNumber: 505,
                     columnNumber: 9
                 }, this)
             }, void 0, false, {
                 fileName: "[project]/src/app/payments/page.tsx",
-                lineNumber: 490,
+                lineNumber: 504,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$components$2f$ui$2f$bottom$2d$nav$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["default"], {}, void 0, false, {
                 fileName: "[project]/src/app/payments/page.tsx",
-                lineNumber: 496,
+                lineNumber: 510,
                 columnNumber: 7
             }, this)
         ]
     }, void 0, true, {
         fileName: "[project]/src/app/payments/page.tsx",
-        lineNumber: 320,
+        lineNumber: 330,
         columnNumber: 5
     }, this);
 }

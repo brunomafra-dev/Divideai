@@ -15,7 +15,7 @@ export default function BottomNav() {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 safe-area-bottom z-50">
-      <div className="max-w-4xl mx-auto px-4 py-3 flex justify-around items-center">
+      <div className="max-w-4xl mx-auto px-4 py-3 flex justify-around items-center min-h-[72px]">
         <Link href="/" className={`flex flex-col items-center gap-1 ${isActive('/') && !pathname.includes('/activity') && !pathname.includes('/payments') && !pathname.includes('/settings') ? 'text-[#5BC5A7]' : 'text-gray-400 hover:text-[#5BC5A7]'}`}>
           <div className="w-6 h-6 flex items-center justify-center">
             <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">

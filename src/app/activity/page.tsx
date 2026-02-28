@@ -6,11 +6,11 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import BottomNav from '@/components/ui/bottom-nav'
+import { fetchGroupMembersMap, type GroupMember } from '@/lib/group-members'
 
 type GroupRow = {
   id: string
   name: string
-  participants?: any
 }
 
 type TransactionRow = {
@@ -52,10 +52,10 @@ function timeAgo(dateStr: string) {
   const day = Math.floor(hr / 24)
 
   if (sec < 60) return 'agora'
-  if (min < 60) return `${min} min atrás`
-  if (hr < 24) return `${hr} horas atrás`
-  if (day === 1) return '1 dia atrás'
-  if (day < 30) return `${day} dias atrás`
+  if (min < 60) return `${min} min atras`
+  if (hr < 24) return `${hr} horas atras`
+  if (day === 1) return '1 dia atras'
+  if (day < 30) return `${day} dias atras`
   return d.toLocaleDateString('pt-BR')
 }
 
@@ -64,6 +64,7 @@ export default function Activity() {
   const [loading, setLoading] = useState(true)
   const [myId, setMyId] = useState<string | null>(null)
   const [groups, setGroups] = useState<GroupRow[]>([])
+  const [membersByGroup, setMembersByGroup] = useState<Map<string, GroupMember[]>>(new Map())
   const [transactions, setTransactions] = useState<TransactionRow[]>([])
   const [payments, setPayments] = useState<PaymentRow[]>([])
 
@@ -76,14 +77,24 @@ export default function Activity() {
       } = await supabase.auth.getSession()
 
       if (!session) {
+        setLoading(false)
         router.replace('/login')
         return
       }
 
       setMyId(session.user.id)
 
-      const { data: g } = await supabase.from('groups').select('id,name,participants')
-      setGroups((g as any) || [])
+      const { data: g } = await supabase.from('groups').select('id,name')
+      const safeGroups = ((g as GroupRow[] | null) ?? [])
+      setGroups(safeGroups)
+
+      try {
+        const membersMap = await fetchGroupMembersMap(safeGroups.map((group) => group.id))
+        setMembersByGroup(membersMap)
+      } catch (error) {
+        console.error('activity.members-load-error', error)
+        setMembersByGroup(new Map())
+      }
 
       const { data: t } = await supabase
         .from('transactions')
@@ -92,10 +103,10 @@ export default function Activity() {
         .limit(30)
 
       setTransactions(
-        ((t as any) || []).map((x: any) => ({
+        (((t as TransactionRow[] | null) ?? []).map((x) => ({
           ...x,
           value: Number(x.value) || 0,
-        }))
+        })))
       )
 
       const { data: p } = await supabase
@@ -105,10 +116,10 @@ export default function Activity() {
         .limit(30)
 
       setPayments(
-        ((p as any) || []).map((x: any) => ({
+        (((p as PaymentRow[] | null) ?? []).map((x) => ({
           ...x,
           amount: Number(x.amount) || 0,
-        }))
+        })))
       )
 
       setLoading(false)
@@ -124,24 +135,21 @@ export default function Activity() {
   }, [groups])
 
   const userNameFromGroup = (groupId: string, userId: string) => {
-    const group = groupMap.get(groupId)
-    const participants: any[] = Array.isArray(group?.participants) ? group!.participants : []
-    const found = participants.find((p) => String(p?.id ?? p?.user_id) === String(userId))
-    return found?.name || found?.email || null
+    const participants = membersByGroup.get(groupId) || []
+    const found = participants.find((p) => String(p.id) === String(userId))
+    return found?.name || null
   }
 
   const activities: ActivityItem[] = useMemo(() => {
     const items: ActivityItem[] = []
 
-    // Expenses
     for (const tx of transactions) {
       const group = groupMap.get(tx.group_id)
       const groupName = group?.name || 'Grupo'
-
       const payerName =
         myId && String(tx.payer_id) === String(myId)
-          ? 'Você'
-          : userNameFromGroup(tx.group_id, tx.payer_id) || 'Alguém'
+          ? 'Voce'
+          : userNameFromGroup(tx.group_id, tx.payer_id) || 'Alguem'
 
       items.push({
         id: `tx_${tx.id}`,
@@ -152,20 +160,17 @@ export default function Activity() {
       })
     }
 
-    // Settles (payments)
     for (const pay of payments) {
       const group = groupMap.get(pay.group_id)
       const groupName = group?.name || 'Grupo'
-
       const fromName =
         myId && String(pay.from_user) === String(myId)
-          ? 'Você'
-          : userNameFromGroup(pay.group_id, pay.from_user) || 'Alguém'
-
+          ? 'Voce'
+          : userNameFromGroup(pay.group_id, pay.from_user) || 'Alguem'
       const toName =
         myId && String(pay.to_user) === String(myId)
-          ? 'você'
-          : userNameFromGroup(pay.group_id, pay.to_user) || 'alguém'
+          ? 'voce'
+          : userNameFromGroup(pay.group_id, pay.to_user) || 'alguem'
 
       items.push({
         id: `pay_${pay.id}`,
@@ -176,11 +181,9 @@ export default function Activity() {
       })
     }
 
-    // Ordena por data desc
     items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-
     return items.slice(0, 30)
-  }, [transactions, payments, groupMap, myId])
+  }, [transactions, payments, groupMap, membersByGroup, myId])
 
   if (loading) {
     return (
@@ -191,12 +194,11 @@ export default function Activity() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F7F7F7] pb-20">
-      {/* Header */}
+    <div className="min-h-screen bg-[#F7F7F7] flex flex-col overflow-x-hidden">
       <header className="bg-white shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
           <Link href="/">
-            <button className="text-gray-600 hover:text-gray-800" aria-label="Voltar">
+            <button className="text-gray-600 hover:text-gray-800" aria-label="Voltar" type="button">
               <ArrowLeft className="w-6 h-6" />
             </button>
           </Link>
@@ -205,12 +207,12 @@ export default function Activity() {
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-4 py-6">
+      <main className="flex-1 overflow-y-auto max-w-4xl w-full mx-auto px-4 py-6 pb-[calc(8rem+env(safe-area-inset-bottom))]">
         {activities.length === 0 ? (
           <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 text-center">
             <p className="text-gray-700 font-medium">Sem atividades por enquanto</p>
             <p className="text-sm text-gray-500 mt-1">
-              Quando alguém adicionar gastos ou pagamentos, eles aparecem aqui.
+              Quando alguem adicionar gastos ou pagamentos, eles aparecem aqui.
             </p>
           </div>
         ) : (
@@ -238,15 +240,14 @@ export default function Activity() {
         )}
       </main>
 
-      {/* Ad Space Placeholder */}
-      <div className="max-w-4xl mx-auto px-4 py-4">
+      <div className="max-w-4xl w-full mx-auto px-4 py-4">
         <div className="bg-gray-100 rounded-xl p-4 text-center border-2 border-dashed border-gray-300">
-          <p className="text-xs text-gray-500">Espaço reservado para anúncio</p>
+          <p className="text-xs text-gray-500">Espaco reservado para anuncio</p>
         </div>
       </div>
 
-      {/* Bottom Navigation */}
       <BottomNav />
     </div>
   )
 }
+
