@@ -1,6 +1,6 @@
-"use client";
+﻿"use client";
 
-import { ArrowLeft, Plus, Check, X } from "lucide-react";
+import { ArrowLeft, Check, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -10,25 +10,17 @@ import BottomNav from "@/components/ui/bottom-nav";
 interface Participant {
   id: string;
   name: string;
-  email?: string;
+  userId: string | null;
 }
 
 interface TransactionRow {
   id: string;
-  group_id: string;
   value: number;
   description: string;
   payer_id: string;
-  participants?: string[]; // array of participant ids
+  participants?: string[];
   splits?: Record<string, number>;
-  created_at?: string;
-}
-
-interface GroupRow {
-  id: string;
-  name: string;
-  participants?: Participant[];
-  participantsList?: Participant[];
+  status?: string;
 }
 
 export default function EditExpensePage() {
@@ -38,230 +30,277 @@ export default function EditExpensePage() {
   const expenseId = params.expenseId as string;
 
   const [loading, setLoading] = useState(true);
-  const [currentUserId, setCurrentUserId] = useState<string>("");
-  const [originalPayerId, setOriginalPayerId] = useState<string>("");
+  const [currentUserId, setCurrentUserId] = useState("");
+  const [groupName, setGroupName] = useState("Editar gasto");
 
-  const [group, setGroup] = useState<GroupRow | null>(null);
   const [participants, setParticipants] = useState<Participant[]>([]);
-
-  const [value, setValue] = useState<string>("");
-  const [description, setDescription] = useState<string>("");
-  const [payerId, setPayerId] = useState<string>("");
+  const [value, setValue] = useState("");
+  const [description, setDescription] = useState("");
+  const [payerId, setPayerId] = useState("");
   const [splitType, setSplitType] = useState<"equal" | "custom">("equal");
-
   const [weights, setWeights] = useState<Record<string, number>>({});
   const [calculatedSplits, setCalculatedSplits] = useState<Record<string, number>>({});
   const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
 
-  // load group and transaction
+  const [originalPayerId, setOriginalPayerId] = useState("");
+  const [expenseStatus, setExpenseStatus] = useState("");
+  const [deleting, setDeleting] = useState(false);
+
+  const canEdit = Boolean(currentUserId && originalPayerId && currentUserId === originalPayerId);
+  const canDelete = canEdit && expenseStatus === "paid";
+
   useEffect(() => {
     if (!groupId || !expenseId) return;
 
-    async function load() {
+    const load = async () => {
       setLoading(true);
+
       const {
         data: { session },
       } = await supabase.auth.getSession();
 
-      if (!session) {
+      if (!session?.user) {
         router.replace("/login");
         return;
       }
 
-      setCurrentUserId(session.user.id);
+      const uid = session.user.id;
+      setCurrentUserId(uid);
 
-      // load group (to get participants)
-      const { data: g, error: gerr } = await supabase
+      const { data: groupRow, error: groupError } = await supabase
         .from("groups")
-        .select("*")
+        .select("id,name")
         .eq("id", groupId)
         .single();
 
-      if (gerr) {
-        console.error("Erro ao buscar grupo:", gerr);
-      } else {
-        setGroup(g);
-        const list: Participant[] = (g.participants ?? g.participantsList) || [];
-        setParticipants(list);
-
-        // init weights default
-        const defaultWeights: Record<string, number> = {};
-        list.forEach((p: Participant) => (defaultWeights[p.id] = 1));
-        setWeights(defaultWeights);
+      if (groupError || !groupRow) {
+        console.error("edit-expense.group-load-error", groupError);
+        router.replace("/");
+        return;
       }
 
-      // load transaction
-      const { data: tx, error: txErr } = await supabase
-        .from("transactions")
-        .select("*")
-        .eq("id", expenseId)
-        .single();
+      setGroupName(String(groupRow.name || "Editar gasto"));
 
-      if (txErr) {
-        console.error("Erro ao buscar transação:", txErr);
+      const { data: participantRows, error: participantError } = await supabase
+        .from("participants")
+        .select("id,user_id,display_name")
+        .eq("group_id", groupId);
+
+      if (participantError) {
+        console.error("edit-expense.participants-load-error", participantError);
         setLoading(false);
         return;
       }
 
-      if (tx) {
-        // populate form from tx
-        setValue(String(tx.value ?? ""));
-        setDescription(tx.description ?? "");
-        setPayerId(tx.payer_id ?? "");
-        setOriginalPayerId(tx.payer_id ?? "");
-        const participantsFromTx: string[] = Array.isArray(tx.participants)
-          ? tx.participants
-          : (g?.participants ?? g?.participantsList ?? []).map((p: Participant) => p.id);
-        setSelectedParticipants(participantsFromTx);
+      const rows = participantRows ?? [];
+      const userIds = rows
+        .map((row) => String((row as { user_id?: string | null }).user_id || "").trim())
+        .filter(Boolean);
 
-        // if tx.splits exists, try to infer weights (normalize to 1..n)
-        if (tx.splits) {
-          // convert splits to rough weights (value proportional)
-          const weightsObj: Record<string, number> = {};
-          Object.entries(tx.splits).forEach(([pid, v]) => {
-            // avoid zero
-            weightsObj[pid] = Number(parseFloat(String(v))) || 1;
-          });
-          // if group participants exist, ensure all have at least 1
-          ( (g?.participants ?? g?.participantsList) || []).forEach((p: Participant) => {
-            if (!weightsObj[p.id]) weightsObj[p.id] = 1;
-          });
-          setWeights(weightsObj);
-          setCalculatedSplits(tx.splits ?? {});
-          // if splits equal for all -> equal mode
-          const values = Object.values(tx.splits || {});
-          const allEqual = values.every(v => Math.abs(Number(v) - Number(values[0] ?? 0)) < 0.005);
-          setSplitType(allEqual ? "equal" : "custom");
+      let profileMap = new Map<string, { username?: string; full_name?: string }>();
+      if (userIds.length > 0) {
+        const { data: profileRows, error: profilesError } = await supabase
+          .from("profiles")
+          .select("id,username,full_name")
+          .in("id", userIds);
+
+        if (profilesError) {
+          console.error("edit-expense.profiles-load-error", profilesError);
         } else {
-          setSplitType("equal");
+          for (const row of profileRows ?? []) {
+            const id = String((row as { id?: string }).id || "").trim();
+            if (!id) continue;
+            profileMap.set(id, {
+              username: String((row as { username?: string }).username || "").trim(),
+              full_name: String((row as { full_name?: string }).full_name || "").trim(),
+            });
+          }
         }
       }
 
+      const normalizedParticipants: Participant[] = rows.map((row) => {
+        const participantId = String((row as { id?: string }).id || "").trim();
+        const userId = String((row as { user_id?: string | null }).user_id || "").trim() || null;
+        const profile = userId ? profileMap.get(userId) : null;
+        const displayName = String((row as { display_name?: string | null }).display_name || "").trim();
+        const name = profile?.username || profile?.full_name || displayName || "Participante";
+
+        return {
+          id: participantId,
+          name,
+          userId,
+        };
+      });
+
+      setParticipants(normalizedParticipants);
+
+      const defaultWeights: Record<string, number> = {};
+      for (const participant of normalizedParticipants) {
+        defaultWeights[participant.id] = 1;
+      }
+      setWeights(defaultWeights);
+
+      const { data: tx, error: txError } = await supabase
+        .from("transactions")
+        .select("id,value,description,payer_id,participants,splits,status")
+        .eq("id", expenseId)
+        .single();
+
+      if (txError || !tx) {
+        console.error("edit-expense.transaction-load-error", txError);
+        setLoading(false);
+        return;
+      }
+
+      const transaction = tx as TransactionRow;
+      setValue(String(Number(transaction.value) || ""));
+      setDescription(String(transaction.description || ""));
+      setPayerId(String(transaction.payer_id || ""));
+      setOriginalPayerId(String(transaction.payer_id || ""));
+      setExpenseStatus(String(transaction.status || ""));
+
+      const participantIdsFromTx = Array.isArray(transaction.participants)
+        ? transaction.participants.map((id) => String(id))
+        : normalizedParticipants.map((p) => p.id);
+      setSelectedParticipants(participantIdsFromTx);
+
+      if (transaction.splits && Object.keys(transaction.splits).length > 0) {
+        setCalculatedSplits(transaction.splits);
+        const weightMap: Record<string, number> = { ...defaultWeights };
+        for (const [key, splitValue] of Object.entries(transaction.splits)) {
+          weightMap[key] = Number(splitValue) > 0 ? Number(splitValue) : 1;
+        }
+        setWeights(weightMap);
+
+        const values = Object.values(transaction.splits);
+        const first = Number(values[0] || 0);
+        const allEqual = values.every((v) => Math.abs(Number(v) - first) < 0.005);
+        setSplitType(allEqual ? "equal" : "custom");
+      }
+
       setLoading(false);
-    }
+    };
 
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [groupId, expenseId]);
+  }, [expenseId, groupId, router]);
 
-  function toggleParticipant(pid: string) {
-    if (selectedParticipants.includes(pid)) {
-      setSelectedParticipants(prev => prev.filter(p => p !== pid));
-    } else {
-      setSelectedParticipants(prev => [...prev, pid]);
-    }
-  }
+  const toggleParticipant = (participantId: string) => {
+    setSelectedParticipants((prev) =>
+      prev.includes(participantId) ? prev.filter((id) => id !== participantId) : [...prev, participantId]
+    );
+  };
 
-  function calculateCustomSplits() {
-    const total = parseFloat(value);
+  const calculateEqualSplits = () => {
+    const total = Number.parseFloat(value);
     if (!total || total <= 0) {
       setCalculatedSplits({});
-      return {};
+      return {} as Record<string, number>;
     }
 
-    // sum weights only for selected participants
-    const totalWeight = selectedParticipants.reduce((acc, pid) => acc + (weights[pid] || 1), 0);
-    if (totalWeight === 0) return {};
+    const list = selectedParticipants.length > 0 ? selectedParticipants : participants.map((p) => p.id);
+    const per = Number((total / Math.max(list.length, 1)).toFixed(2));
+    const next: Record<string, number> = {};
+    for (const id of list) {
+      next[id] = per;
+    }
 
-    const result: Record<string, number> = {};
-    selectedParticipants.forEach(pid => {
-      const w = weights[pid] ?? 1;
-      result[pid] = parseFloat(((total * w) / totalWeight).toFixed(2));
-    });
+    setCalculatedSplits(next);
+    return next;
+  };
 
-    setCalculatedSplits(result);
-    return result;
-  }
-
-  function calculateEqualSplits() {
-    const total = parseFloat(value);
+  const calculateCustomSplits = () => {
+    const total = Number.parseFloat(value);
     if (!total || total <= 0) {
       setCalculatedSplits({});
-      return {};
+      return {} as Record<string, number>;
     }
-    const count = selectedParticipants.length || participants.length;
-    const per = parseFloat((total / Math.max(1, count)).toFixed(2));
-    const result: Record<string, number> = {};
-    const list = selectedParticipants.length ? selectedParticipants : participants.map(p => p.id);
-    list.forEach(pid => (result[pid] = per));
-    setCalculatedSplits(result);
-    return result;
-  }
 
-  async function handleUpdate() {
-    if (!currentUserId || !originalPayerId || currentUserId !== originalPayerId) {
-      alert("Somente quem criou o gasto pode editar ou marcar pagamento.");
+    const list = selectedParticipants.length > 0 ? selectedParticipants : participants.map((p) => p.id);
+    const totalWeight = list.reduce((acc, id) => acc + Math.max(Number(weights[id] || 0), 0), 0);
+    if (totalWeight <= 0) {
+      setCalculatedSplits({});
+      return {} as Record<string, number>;
+    }
+
+    const next: Record<string, number> = {};
+    for (const id of list) {
+      const w = Math.max(Number(weights[id] || 0), 0);
+      next[id] = Number(((total * w) / totalWeight).toFixed(2));
+    }
+
+    setCalculatedSplits(next);
+    return next;
+  };
+
+  const handleUpdate = async () => {
+    if (!canEdit) {
+      alert("Somente quem criou o gasto pode editar.");
       return;
     }
 
-    if (!value || !description || !payerId) {
-      alert("Preencha valor, descrição e selecione quem pagou");
+    if (!description.trim() || !value || Number(value) <= 0 || !payerId) {
+      alert("Preencha valor, descrição e pagador.");
       return;
     }
-    // ensure selected participants includes at least the payer
-    if (!selectedParticipants.includes(payerId)) {
-      setSelectedParticipants(prev => [...prev, payerId]);
+
+    const selected = selectedParticipants.length > 0 ? selectedParticipants : participants.map((p) => p.id);
+    if (!selected.includes(payerId)) {
+      selected.push(payerId);
     }
 
-    let splitsToSave: Record<string, number> = {};
-    if (splitType === "equal") splitsToSave = calculateEqualSplits();
-    else splitsToSave = calculateCustomSplits();
-
-    // fallback: if splits empty, calculate equal
-    if (!splitsToSave || Object.keys(splitsToSave).length === 0) {
+    let splitsToSave = splitType === "equal" ? calculateEqualSplits() : calculateCustomSplits();
+    if (Object.keys(splitsToSave).length === 0) {
       splitsToSave = calculateEqualSplits();
     }
 
-    const baseUpdateObj = {
-      value: parseFloat(value),
-      description,
-      payer_id: payerId,
-    };
-
-    let { error } = await supabase
+    const { error } = await supabase
       .from("transactions")
       .update({
-        ...baseUpdateObj,
-        participants: selectedParticipants,
+        value: Number(value),
+        description: description.trim(),
+        payer_id: payerId,
+        participants: selected,
         splits: splitsToSave,
       })
-      .eq("id", expenseId);
-
-    if (error?.code === "PGRST204" && error.message?.includes("'participants'")) {
-      const retry = await supabase
-        .from("transactions")
-        .update({
-          ...baseUpdateObj,
-          splits: splitsToSave,
-        })
-        .eq("id", expenseId);
-      error = retry.error;
-    }
-
-    if (error?.code === "PGRST204" && error.message?.includes("'splits'")) {
-      const retry = await supabase
-        .from("transactions")
-        .update(baseUpdateObj)
-        .eq("id", expenseId);
-      error = retry.error;
-    }
+      .eq("id", expenseId)
+      .eq("payer_id", currentUserId);
 
     if (error) {
-      console.error("Erro ao atualizar gasto:", error);
-      alert("Erro ao atualizar. Veja console.");
+      console.error("edit-expense.update-error", error);
+      alert("Erro ao atualizar gasto.");
       return;
     }
 
-    // success
-    router.push(`/group/${groupId}`);
-  }
+    router.replace(`/group/${groupId}`);
+    router.refresh();
+  };
+
+  const handleDelete = async () => {
+    if (!canDelete || deleting) return;
+
+    const confirmDelete = window.confirm("Excluir este gasto quitado? Essa ação não pode ser desfeita.");
+    if (!confirmDelete) return;
+
+    setDeleting(true);
+    const { error } = await supabase
+      .from("transactions")
+      .delete()
+      .eq("id", expenseId)
+      .eq("payer_id", currentUserId);
+
+    if (error) {
+      console.error("edit-expense.delete-error", error);
+      alert("Erro ao excluir gasto.");
+      setDeleting(false);
+      return;
+    }
+
+    router.replace(`/group/${groupId}`);
+    router.refresh();
+  };
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#F7F7F7]">
-        Carregando...
-      </div>
-    );
+    return <div className="min-h-screen flex items-center justify-center bg-[#F7F7F7]">Carregando...</div>;
   }
 
   return (
@@ -272,21 +311,17 @@ export default function EditExpensePage() {
             <ArrowLeft className="w-6 h-6 text-gray-600" />
           </Link>
 
-          <h1 className="text-lg font-semibold text-gray-800">Editar gasto</h1>
+          <h1 className="text-lg font-semibold text-gray-800 truncate px-2">{groupName}</h1>
 
           <div className="flex gap-2">
-            <button
-              onClick={() => router.back()}
-              className="px-3 py-1 rounded-lg border"
-              title="Cancelar"
-            >
+            <button onClick={() => router.back()} className="px-3 py-1 rounded-lg border" title="Cancelar" type="button">
               <X className="w-4 h-4" />
             </button>
-
             <button
               onClick={handleUpdate}
-              disabled={!currentUserId || !originalPayerId || currentUserId !== originalPayerId}
-              className="px-3 py-1 rounded-lg bg-[#5BC5A7] text-white flex items-center gap-2"
+              disabled={!canEdit}
+              className="px-3 py-1 rounded-lg bg-[#5BC5A7] text-white flex items-center gap-2 disabled:opacity-60"
+              type="button"
             >
               <Check className="w-4 h-4" /> Atualizar
             </button>
@@ -295,7 +330,6 @@ export default function EditExpensePage() {
       </header>
 
       <main className="flex-1 overflow-y-auto max-w-4xl w-full mx-auto px-4 py-6 pb-[calc(8rem+env(safe-area-inset-bottom))] space-y-6">
-        {/* Valor */}
         <div className="bg-white p-6 rounded-xl shadow-sm">
           <label className="text-gray-600 font-medium">Valor</label>
           <input
@@ -308,7 +342,6 @@ export default function EditExpensePage() {
           />
         </div>
 
-        {/* Descrição */}
         <div className="bg-white p-4 rounded-xl shadow-sm">
           <label className="block font-medium text-gray-600">Descrição</label>
           <input
@@ -319,38 +352,33 @@ export default function EditExpensePage() {
           />
         </div>
 
-        {/* Quem pagou */}
         <div className="bg-white p-4 rounded-xl shadow-sm">
           <label className="font-medium text-gray-600">Quem pagou?</label>
-
-          {participants.map(p => (
+          {participants.map((participant) => (
             <button
-              key={p.id}
-              onClick={() => setPayerId(p.id)}
-              className={`w-full text-left p-3 border rounded-lg mt-2 ${
-                payerId === p.id ? "border-[#5BC5A7] bg-green-50" : ""
-              }`}
+              key={participant.id}
+              onClick={() => setPayerId(participant.id)}
+              className={`w-full text-left p-3 border rounded-lg mt-2 ${payerId === participant.id ? "border-[#5BC5A7] bg-green-50" : ""}`}
+              type="button"
             >
-              {p.name}
+              {participant.name}
             </button>
           ))}
         </div>
 
-        {/* Selecionar participantes */}
         <div className="bg-white p-4 rounded-xl shadow-sm">
           <label className="font-medium text-gray-600">Quem participou?</label>
           <div className="mt-2 space-y-2">
-            {participants.map(p => {
-              const isSelected = selectedParticipants.includes(p.id);
+            {participants.map((participant) => {
+              const isSelected = selectedParticipants.includes(participant.id);
               return (
                 <button
-                  key={p.id}
-                  onClick={() => toggleParticipant(p.id)}
-                  className={`w-full p-3 rounded-lg border flex justify-between items-center ${
-                    isSelected ? "border-[#5BC5A7] bg-green-50" : "border-gray-200"
-                  }`}
+                  key={participant.id}
+                  onClick={() => toggleParticipant(participant.id)}
+                  className={`w-full p-3 rounded-lg border flex justify-between items-center ${isSelected ? "border-[#5BC5A7] bg-green-50" : "border-gray-200"}`}
+                  type="button"
                 >
-                  <span>{p.name}</span>
+                  <span>{participant.name}</span>
                   <span className="text-sm text-gray-600">{isSelected ? "participa" : "não"}</span>
                 </button>
               );
@@ -358,25 +386,21 @@ export default function EditExpensePage() {
           </div>
         </div>
 
-        {/* Tipo de divisão */}
         <div className="bg-white p-4 rounded-xl shadow-sm">
           <label className="font-medium text-gray-600">Como dividir?</label>
 
           <div className="flex gap-3 mt-3">
             <button
               onClick={() => setSplitType("equal")}
-              className={`flex-1 p-2 rounded-lg ${
-                splitType === "equal" ? "bg-[#5BC5A7] text-white" : "bg-gray-200"
-              }`}
+              className={`flex-1 p-2 rounded-lg ${splitType === "equal" ? "bg-[#5BC5A7] text-white" : "bg-gray-200"}`}
+              type="button"
             >
               Igual
             </button>
-
             <button
               onClick={() => setSplitType("custom")}
-              className={`flex-1 p-2 rounded-lg ${
-                splitType === "custom" ? "bg-[#5BC5A7] text-white" : "bg-gray-200"
-              }`}
+              className={`flex-1 p-2 rounded-lg ${splitType === "custom" ? "bg-[#5BC5A7] text-white" : "bg-gray-200"}`}
+              type="button"
             >
               Personalizada
             </button>
@@ -386,45 +410,58 @@ export default function EditExpensePage() {
             <div className="mt-4 space-y-3">
               <p className="text-sm text-gray-600">Defina o peso de cada pessoa (0 = não participa):</p>
 
-              {participants.map(p => (
-                <div key={p.id} className="flex justify-between items-center border p-2 rounded-lg">
-                  <span>{p.name}</span>
+              {participants.map((participant) => (
+                <div key={participant.id} className="flex justify-between items-center border p-2 rounded-lg">
+                  <span>{participant.name}</span>
                   <input
                     type="number"
                     min={0}
-                    value={weights[p.id] ?? 0}
-                    onChange={(e) => setWeights({ ...weights, [p.id]: Number(e.target.value) })}
+                    value={weights[participant.id] ?? 0}
+                    onChange={(e) => setWeights({ ...weights, [participant.id]: Number(e.target.value) })}
                     className="w-20 border rounded p-1 text-center"
                   />
                 </div>
               ))}
 
               <div className="flex gap-2 mt-2">
-                <button onClick={calculateCustomSplits} className="bg-[#5BC5A7] text-white px-4 py-2 rounded-lg">
+                <button onClick={calculateCustomSplits} className="bg-[#5BC5A7] text-white px-4 py-2 rounded-lg" type="button">
                   Calcular divisão
                 </button>
-                <button onClick={() => setCalculatedSplits({})} className="px-4 py-2 rounded-lg border">
+                <button onClick={() => setCalculatedSplits({})} className="px-4 py-2 rounded-lg border" type="button">
                   Limpar
                 </button>
               </div>
 
               {Object.keys(calculatedSplits).length > 0 && (
                 <div className="mt-3 p-3 bg-gray-100 rounded-lg">
-                  {Object.entries(calculatedSplits).map(([pid, v]) => {
-                    const name = participants.find(x => x.id === pid)?.name ?? pid;
-                    return <p key={pid}><strong>{name}:</strong> R$ {v.toFixed(2)}</p>;
+                  {Object.entries(calculatedSplits).map(([id, split]) => {
+                    const participantName = participants.find((p) => p.id === id)?.name ?? id;
+                    return (
+                      <p key={id}>
+                        <strong>{participantName}:</strong> R$ {split.toFixed(2)}
+                      </p>
+                    );
                   })}
                 </div>
               )}
             </div>
           )}
         </div>
+
+        {canDelete && (
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            className="w-full py-3 rounded-lg bg-red-500 text-white font-medium flex items-center justify-center gap-2 disabled:opacity-60"
+            type="button"
+          >
+            <Trash2 className="w-4 h-4" />
+            {deleting ? "Excluindo..." : "Excluir gasto quitado"}
+          </button>
+        )}
       </main>
+
       <BottomNav />
     </div>
   );
 }
-
-
-
-
