@@ -60,14 +60,17 @@ export default function Payments() {
   const [payments, setPayments] = useState<Payment[]>([])
   const [filter, setFilter] = useState<'all' | 'paid' | 'pending'>('all')
   const [loading, setLoading] = useState(true)
+  const [initialized, setInitialized] = useState(false)
   const [savingId, setSavingId] = useState<string | null>(null)
   const [myId, setMyId] = useState<string | null>(null)
   const [selfPaidTotal, setSelfPaidTotal] = useState(0)
   const [chargeTarget, setChargeTarget] = useState<Payment | null>(null)
   const [pixCopyPaste, setPixCopyPaste] = useState('')
 
-  const load = useCallback(async () => {
-    setLoading(true)
+  const load = useCallback(async (showBlockingLoading: boolean = false) => {
+    if (showBlockingLoading || !initialized) {
+      setLoading(true)
+    }
     try {
       const {
         data: { session },
@@ -219,26 +222,27 @@ export default function Payments() {
       console.error('payments.load-unhandled-error', error)
       setPayments([])
     } finally {
+      setInitialized(true)
       setLoading(false)
     }
-  }, [router])
+  }, [initialized, router])
 
   useEffect(() => {
-    load()
+    load(true)
 
     const channel = supabase
       .channel('payments-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, () => {
-        load()
+        load(false)
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => {
-        load()
+        load(false)
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'participants' }, () => {
-        load()
+        load(false)
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'groups' }, () => {
-        load()
+        load(false)
       })
       .subscribe()
 

@@ -41,6 +41,7 @@ export default function Home() {
   const [groups, setGroups] = useState<GroupUI[]>([])
   const [totalBalance, setTotalBalance] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [initialized, setInitialized] = useState(false)
 
   const getInitials = (name: string) => {
     const parts = String(name || '').trim().split(' ').filter(Boolean)
@@ -90,8 +91,10 @@ export default function Home() {
   }
 
   useEffect(() => {
-    const run = async () => {
-      setLoading(true)
+    const run = async (showBlockingLoading: boolean = false) => {
+      if (showBlockingLoading || !initialized) {
+        setLoading(true)
+      }
       try {
         const {
           data: { session },
@@ -249,30 +252,31 @@ export default function Home() {
         setGroups([])
         setTotalBalance(0)
       } finally {
+        setInitialized(true)
         setLoading(false)
       }
     }
 
-    run()
+    run(true)
 
     const channel = supabase
       .channel('home-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'groups' }, () => {
-        run()
+        run(false)
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'participants' }, () => {
-        run()
+        run(false)
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => {
-        run()
+        run(false)
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, () => {
-        run()
+        run(false)
       })
       .subscribe()
 
     const onFocus = () => {
-      run()
+      run(false)
     }
 
     const onVisibilityChange = () => {
@@ -289,7 +293,7 @@ export default function Home() {
       window.removeEventListener('focus', onFocus)
       document.removeEventListener('visibilitychange', onVisibilityChange)
     }
-  }, [router])
+  }, [initialized, router])
 
   if (loading) {
     return (
