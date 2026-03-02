@@ -24,16 +24,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const getSessionWithTimeout = async (timeoutMs: number) => {
-      const timeoutPromise = new Promise<null>((resolve) => {
-        setTimeout(() => resolve(null), timeoutMs)
-      })
+    let cancelled = false
 
+    const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> => {
+      const timeoutPromise = new Promise<T>((resolve) => {
+        setTimeout(() => resolve(fallback), timeoutMs)
+      })
+      return Promise.race([promise, timeoutPromise])
+    }
+
+    const getSessionWithTimeout = async (timeoutMs: number) => {
       try {
-        const result = (await Promise.race([
+        const result = (await withTimeout(
           supabase.auth.getSession(),
-          timeoutPromise,
-        ])) as { data?: { session?: Session | null } } | null
+          timeoutMs,
+          null
+        )) as { data?: { session?: Session | null } } | null
 
         return result?.data?.session ?? null
       } catch (error) {
@@ -47,10 +53,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const pendingSeed = consumePendingProfileSeed(sessionUser.id)
       try {
-        await ensureProfileForUser(sessionUser, {
-          username: pendingSeed?.username,
-          fullName: pendingSeed?.fullName,
-        })
+        await withTimeout(
+          ensureProfileForUser(sessionUser, {
+            username: pendingSeed?.username,
+            fullName: pendingSeed?.fullName,
+          }),
+          5000,
+          null
+        )
       } catch (error) {
         const code = String((error as { code?: string })?.code || '')
         const message = String((error as { message?: string })?.message || '').toLowerCase()
@@ -70,7 +80,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!pendingInviteToken) return
 
       try {
-        const groupId = await acceptInviteToken(pendingInviteToken, sessionUser.id)
+        const groupId = await withTimeout(
+          acceptInviteToken(pendingInviteToken, sessionUser.id),
+          5000,
+          ''
+        )
+        if (!groupId) return
         clearPendingInviteToken()
         if (typeof window !== 'undefined' && window.location.pathname !== `/group/${groupId}`) {
           window.location.replace(`/group/${groupId}`)
@@ -82,13 +97,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const init = async () => {
       const session = await getSessionWithTimeout(5000)
+      if (cancelled) return
       setSession(session)
       setUser(session?.user ?? null)
 
       try {
         await ensureIdentity(session?.user ?? null)
       } finally {
-        setLoading(false)
+        if (!cancelled) {
+          setLoading(false)
+        }
       }
     }
 
@@ -97,16 +115,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (cancelled) return
       setSession(session)
       setUser(session?.user ?? null)
       try {
         await ensureIdentity(session?.user ?? null)
       } finally {
-        setLoading(false)
+        if (!cancelled) {
+          setLoading(false)
+        }
       }
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      cancelled = true
+      subscription.unsubscribe()
+    }
   }, [])
 
   return (

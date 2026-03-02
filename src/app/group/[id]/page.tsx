@@ -9,13 +9,14 @@ import { calculateUserBalance, type BalancePayment, type BalanceTransaction } fr
 import { generateSecureInviteToken } from '@/lib/invites'
 import { buildInviteLink } from '@/lib/site-url'
 import BottomNav from '@/components/ui/bottom-nav'
+import UserAvatar from '@/components/user-avatar'
 
 interface Participant {
   id: string
   user_id?: string
   display_name?: string
   name: string
-  avatar_url?: string
+  avatar_key?: string
   email?: string
 }
 
@@ -71,6 +72,7 @@ export default function GroupPage() {
   const [manualParticipantName, setManualParticipantName] = useState('')
   const [canNativeShare, setCanNativeShare] = useState(false)
   const [isOwner, setIsOwner] = useState(false)
+  const [showMyBalance, setShowMyBalance] = useState(true)
   const isMountedRef = useRef(true)
 
   const loadGroup = useCallback(async () => {
@@ -107,11 +109,18 @@ export default function GroupPage() {
       .map((row) => String(row.user_id || '').trim())
       .filter(Boolean)
 
-    let profileMap = new Map<string, { username?: string; full_name?: string }>()
+    const { data: myProfile } = await supabase
+      .from('profiles')
+      .select('privacy_show_balance')
+      .eq('id', currentUserId)
+      .maybeSingle()
+    setShowMyBalance(Boolean(myProfile?.privacy_show_balance ?? true))
+
+    let profileMap = new Map<string, { username?: string; full_name?: string; privacy_profile_visible?: boolean; avatar_key?: string }>()
     if (participantUsers.length > 0) {
       const { data: profileRows, error: profilesError } = await supabase
         .from('profiles')
-        .select('id,username,full_name')
+        .select('id,username,full_name,privacy_profile_visible,avatar_key')
         .in('id', participantUsers)
 
       if (profilesError) {
@@ -123,6 +132,8 @@ export default function GroupPage() {
           profileMap.set(id, {
             username: String((row as { username?: string }).username || '').trim(),
             full_name: String((row as { full_name?: string }).full_name || '').trim(),
+            privacy_profile_visible: Boolean((row as { privacy_profile_visible?: boolean }).privacy_profile_visible),
+            avatar_key: String((row as { avatar_key?: string }).avatar_key || '').trim(),
           })
         }
       }
@@ -130,12 +141,15 @@ export default function GroupPage() {
 
     const tableParticipants: Participant[] = participantUsers.map((userId) => {
       const profile = profileMap.get(userId)
-      const display = String(profile?.username || profile?.full_name || 'Usuario').trim()
+      const isSelf = String(userId) === String(currentUserId)
+      const canShow = Boolean(profile?.privacy_profile_visible || isSelf)
+      const display = String(canShow ? (profile?.username || profile?.full_name || 'Usuario') : 'Participante').trim()
       return {
         id: userId,
         user_id: userId,
         name: display || 'Usuario',
         display_name: display || 'Usuario',
+        avatar_key: canShow ? (profile?.avatar_key || '') : '',
       }
     })
 
@@ -426,22 +440,18 @@ export default function GroupPage() {
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center">
             {topParticipants.map((participant, index) => {
-              const initial = String(participant.name || participant.display_name || '?').charAt(0).toUpperCase()
               return (
                 <div
                   key={String(participant.user_id || participant.id)}
-                  className="w-10 h-10 rounded-full border-2 border-white bg-[#5BC5A7] text-white flex items-center justify-center text-sm font-semibold overflow-hidden"
+                  className="w-10 h-10 rounded-full border-2 border-white overflow-hidden"
                   style={{ marginLeft: index > 0 ? '-10px' : '0' }}
                 >
-                  {participant.avatar_url ? (
-                    <img
-                      src={participant.avatar_url}
-                      alt={participant.name}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    initial
-                  )}
+                  <UserAvatar
+                    name={String(participant.name || participant.display_name || 'Participante')}
+                    avatarKey={participant.avatar_key}
+                    className="w-full h-full"
+                    textClassName="text-xs"
+                  />
                 </div>
               )
             })}
@@ -611,18 +621,18 @@ export default function GroupPage() {
               <p className="text-sm text-gray-600 mb-1">Seu saldo</p>
               {group.balance === 0 ? (
                 <div className="flex items-center justify-center gap-2">
-                  <p className="text-2xl font-bold text-gray-800">R$ 0,00</p>
+                  <p className="text-2xl font-bold text-gray-800">{showMyBalance ? 'R$ 0,00' : 'Oculto'}</p>
                   <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">zerado</span>
                 </div>
               ) : group.balance > 0 ? (
                 <div className="flex items-center justify-center gap-2">
                   <TrendingUp className="w-5 h-5 text-[#5BC5A7]" />
-                  <p className="text-2xl font-bold text-[#5BC5A7]">R$ {group.balance.toFixed(2)}</p>
+                  <p className="text-2xl font-bold text-[#5BC5A7]">{showMyBalance ? `R$ ${group.balance.toFixed(2)}` : 'Oculto'}</p>
                 </div>
               ) : (
                 <div className="flex items-center justify-center gap-2">
                   <TrendingDown className="w-5 h-5 text-[#FF6B6B]" />
-                  <p className="text-2xl font-bold text-[#FF6B6B]">R$ {Math.abs(group.balance).toFixed(2)}</p>
+                  <p className="text-2xl font-bold text-[#FF6B6B]">{showMyBalance ? `R$ ${Math.abs(group.balance).toFixed(2)}` : 'Oculto'}</p>
                 </div>
               )}
             </div>
@@ -691,10 +701,15 @@ export default function GroupPage() {
                             {displayParticipants.map((participant, index) => (
                               <div
                                 key={String(participant.user_id || participant.id)}
-                                className="w-6 h-6 bg-[#5BC5A7] rounded-full flex items-center justify-center text-white text-xs font-medium"
+                                className="w-6 h-6 rounded-full overflow-hidden"
                                 style={{ marginLeft: index > 0 ? '-8px' : '0' }}
                               >
-                                {participant.name.charAt(0).toUpperCase()}
+                                <UserAvatar
+                                  name={participant.name}
+                                  avatarKey={participant.avatar_key}
+                                  className="w-full h-full"
+                                  textClassName="text-[10px]"
+                                />
                               </div>
                             ))}
                             {remainingCount > 0 && (

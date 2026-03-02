@@ -1,11 +1,13 @@
 import type { User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
+import { getDefaultAvatarKey } from '@/lib/avatar-presets'
 
 export interface ProfileRow {
   id: string
   username: string
   full_name: string
   is_premium: boolean
+  avatar_key?: string
   created_at?: string
 }
 
@@ -86,11 +88,23 @@ export async function ensureProfileForUser(
   user: User,
   seed?: { username?: string; fullName?: string }
 ) {
-  const current = await supabase
+  let current = await supabase
     .from('profiles')
-    .select('id,username,full_name,is_premium,created_at')
+    .select('id,username,full_name,is_premium,avatar_key,created_at')
     .eq('id', user.id)
     .maybeSingle()
+
+  if (current.error) {
+    const fallback = await supabase
+      .from('profiles')
+      .select('id,username,full_name,is_premium,created_at')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    if (!fallback.error) {
+      current = fallback as typeof current
+    }
+  }
 
   if (current.data) return current.data as ProfileRow
 
@@ -104,16 +118,34 @@ export async function ensureProfileForUser(
   for (let attempt = 0; attempt < 4; attempt += 1) {
     const username = attempt === 0 ? baseUsername : `${baseUsername}_${attempt + 1}`
 
-    const insert = await supabase
+    let insert = await supabase
       .from('profiles')
       .insert({
         id: user.id,
         username,
         full_name: fullName,
         is_premium: false,
+        avatar_key: getDefaultAvatarKey(user.id),
       })
-      .select('id,username,full_name,is_premium,created_at')
+      .select('id,username,full_name,is_premium,avatar_key,created_at')
       .single()
+
+    if (insert.error) {
+      const insertFallback = await supabase
+        .from('profiles')
+        .insert({
+          id: user.id,
+          username,
+          full_name: fullName,
+          is_premium: false,
+        })
+        .select('id,username,full_name,is_premium,created_at')
+        .single()
+
+      if (!insertFallback.error) {
+        insert = insertFallback as typeof insert
+      }
+    }
 
     if (!insert.error) {
       return insert.data as ProfileRow

@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation'
 import { ArrowLeft, LogOut, User, Mail } from 'lucide-react'
 import Link from 'next/link'
 import { ensureProfileForUser } from '@/lib/profiles'
+import { AVATAR_PRESETS, getAvatarPresetUrl, getDefaultAvatarKey } from '@/lib/avatar-presets'
+import UserAvatar from '@/components/user-avatar'
 
 interface UserProfile {
   id: string
@@ -13,6 +15,7 @@ interface UserProfile {
   username: string
   full_name: string
   is_premium: boolean
+  avatar_key?: string
 }
 
 function normalizeUsername(raw: string) {
@@ -31,6 +34,7 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [avatarKey, setAvatarKey] = useState('')
 
   useEffect(() => {
     loadProfile()
@@ -55,11 +59,18 @@ export default function ProfilePage() {
         username: ensured.username,
         full_name: ensured.full_name,
         is_premium: Boolean(ensured.is_premium),
+        avatar_key: String((ensured as { avatar_key?: string }).avatar_key || ''),
       }
 
       setProfile(resolved)
       setUsername(resolved.username)
       setFullName(resolved.full_name)
+      const resolvedAvatarKey = resolved.avatar_key || getDefaultAvatarKey(user.id)
+      setAvatarKey(resolvedAvatarKey)
+
+      if (!resolved.avatar_key) {
+        await supabase.from('profiles').update({ avatar_key: resolvedAvatarKey }).eq('id', user.id)
+      }
     } catch (err: any) {
       setError(err?.message || 'Erro ao carregar perfil')
     } finally {
@@ -88,15 +99,33 @@ export default function ProfilePage() {
 
     setSaving(true)
     try {
-      const { data, error: updateError } = await supabase
+      let { data, error: updateError } = await supabase
         .from('profiles')
         .update({
           username: cleanUsername,
           full_name: cleanFullName,
+          avatar_key: avatarKey || null,
         })
         .eq('id', profile.id)
-        .select('username,full_name,is_premium')
+        .select('username,full_name,is_premium,avatar_key')
         .single()
+
+      if (updateError) {
+        const fallback = await supabase
+          .from('profiles')
+          .update({
+            username: cleanUsername,
+            full_name: cleanFullName,
+          })
+          .eq('id', profile.id)
+          .select('username,full_name,is_premium')
+          .single()
+
+        if (!fallback.error) {
+          data = fallback.data as typeof data
+          updateError = null
+        }
+      }
 
       if (updateError) {
         const code = String(updateError.code || '')
@@ -115,11 +144,13 @@ export default function ProfilePage() {
           username: data.username,
           full_name: data.full_name,
           is_premium: Boolean(data.is_premium),
+          avatar_key: String((data as { avatar_key?: string }).avatar_key || ''),
         }
       })
 
       setUsername(data.username)
       setFullName(data.full_name)
+      setAvatarKey(String((data as { avatar_key?: string }).avatar_key || ''))
       setSuccess('Perfil atualizado com sucesso')
     } catch (err: any) {
       setError(err?.message || 'Erro ao salvar perfil')
@@ -135,13 +166,6 @@ export default function ProfilePage() {
     } catch (err: any) {
       setError(err?.message || 'Erro ao fazer logout')
     }
-  }
-
-  const getInitials = (name: string) => {
-    if (!name) return 'U'
-    const parts = name.split(' ').filter(Boolean)
-    if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase()
-    return name.substring(0, 2).toUpperCase()
   }
 
   if (loading) {
@@ -171,9 +195,7 @@ export default function ProfilePage() {
       <main className="max-w-4xl mx-auto px-4 py-6">
         <div className="bg-white rounded-2xl shadow-sm p-6 mb-6">
           <div className="flex flex-col items-center mb-6">
-            <div className="w-24 h-24 bg-gradient-to-br from-[#5BC5A7] to-[#4AB396] rounded-full flex items-center justify-center text-white text-3xl font-bold mb-4">
-              {getInitials(fullName || username)}
-            </div>
+            <UserAvatar name={fullName || username} avatarKey={avatarKey} className="w-24 h-24 mb-4" textClassName="text-2xl" />
             <h2 className="text-2xl font-bold text-gray-800 mb-1">{fullName || 'Sem nome'}</h2>
             <p className="text-[#5BC5A7] text-sm mb-1">@{username || '-'}</p>
             <p className="text-gray-600">{profile?.email}</p>
@@ -210,6 +232,24 @@ export default function ProfilePage() {
                 className="w-full border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-[#5BC5A7]"
                 placeholder="Seu nome completo"
               />
+            </div>
+
+            <div className="p-4 bg-gray-50 rounded-lg">
+              <label className="block text-sm text-gray-600 mb-3">Avatar</label>
+              <div className="grid grid-cols-4 gap-2">
+                {AVATAR_PRESETS.map((preset) => (
+                  <button
+                    key={preset.key}
+                    type="button"
+                    onClick={() => setAvatarKey(preset.key)}
+                    className={`p-1 rounded-lg border-2 ${avatarKey === preset.key ? 'border-[#5BC5A7]' : 'border-transparent'}`}
+                    title={preset.label}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={getAvatarPresetUrl(preset.key) || ''} alt={preset.label} className="w-12 h-12 rounded-full mx-auto" />
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg">

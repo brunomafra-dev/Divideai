@@ -1,6 +1,6 @@
 'use client'
 
-import { Plus, User, TrendingUp, TrendingDown } from 'lucide-react'
+import { Plus, TrendingUp, TrendingDown } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -8,11 +8,12 @@ import { supabase } from '@/lib/supabase'
 import BottomNav from '@/components/ui/bottom-nav'
 import type { BalancePayment, BalanceTransaction } from '@/lib/balance'
 import { fetchGroupMembersMap, type GroupMember } from '@/lib/group-members'
+import UserAvatar from '@/components/user-avatar'
 
 interface Member {
   id: string
   name: string
-  avatar?: string
+  avatarKey?: string
 }
 
 interface GroupRow {
@@ -42,12 +43,9 @@ export default function Home() {
   const [totalBalance, setTotalBalance] = useState(0)
   const [loading, setLoading] = useState(true)
   const [initialized, setInitialized] = useState(false)
-
-  const getInitials = (name: string) => {
-    const parts = String(name || '').trim().split(' ').filter(Boolean)
-    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase()
-    return String(name || '').substring(0, 2).toUpperCase()
-  }
+  const [showMyBalance, setShowMyBalance] = useState(true)
+  const [myAvatarKey, setMyAvatarKey] = useState('')
+  const [myDisplayName, setMyDisplayName] = useState('Perfil')
 
   const renderMemberAvatars = (members?: Member[], maxDisplay: number = 4) => {
     if (!members || members.length === 0) return null
@@ -60,20 +58,11 @@ export default function Home() {
         {displayMembers.map((member, index) => (
           <div
             key={member.id}
-            className="w-8 h-8 rounded-full bg-gradient-to-br from-[#5BC5A7] to-[#4AB396] flex items-center justify-center text-white text-xs font-medium border-2 border-white"
+            className="w-8 h-8 rounded-full border-2 border-white"
             style={{ zIndex: displayMembers.length - index }}
             title={member.name}
           >
-            {member.avatar ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={member.avatar}
-                alt={member.name}
-                className="w-full h-full rounded-full object-cover"
-              />
-            ) : (
-              getInitials(member.name)
-            )}
+            <UserAvatar name={member.name} avatarKey={member.avatarKey} className="w-full h-full" textClassName="text-[10px]" />
           </div>
         ))}
 
@@ -162,8 +151,29 @@ export default function Home() {
         console.error('Erro ao carregar payments:', pErr.message)
       }
 
+        let myProfile: any = null
+        const myProfilePreferred = await supabase
+          .from('profiles')
+          .select('privacy_show_balance,username,full_name,avatar_key')
+          .eq('id', myId)
+          .maybeSingle()
+
+        if (myProfilePreferred.error) {
+          const myProfileFallback = await supabase
+            .from('profiles')
+            .select('privacy_show_balance,username,full_name')
+            .eq('id', myId)
+            .maybeSingle()
+          myProfile = myProfileFallback.data
+        } else {
+          myProfile = myProfilePreferred.data
+        }
+        setShowMyBalance(Boolean(myProfile?.privacy_show_balance ?? true))
+        setMyAvatarKey(String(myProfile?.avatar_key || ''))
+        setMyDisplayName(String(myProfile?.username || myProfile?.full_name || 'Perfil'))
+
         const safeGroups: GroupRow[] = (groupRows as any) || []
-        const membersByGroup = await fetchGroupMembersMap(safeGroups.map((group) => group.id))
+        const membersByGroup = await fetchGroupMembersMap(safeGroups.map((group) => group.id), myId)
 
         const safeTx: TransactionRow[] = ((txRows as any) || []).map((t: any) => ({
           ...t,
@@ -309,8 +319,8 @@ export default function Home() {
         <div className="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
           <h1 className="text-2xl font-bold text-[#5BC5A7]">Divide Ai</h1>
           <Link href="/profile">
-            <div className="w-10 h-10 bg-[#5BC5A7] rounded-full flex items-center justify-center cursor-pointer hover:bg-[#4AB396] transition-colors">
-              <User className="w-6 h-6 text-white" />
+            <div className="cursor-pointer hover:opacity-90 transition-opacity">
+              <UserAvatar name={myDisplayName} avatarKey={myAvatarKey} className="w-10 h-10" textClassName="text-xs" />
             </div>
           </Link>
         </div>
@@ -323,19 +333,19 @@ export default function Home() {
             <div className="flex items-center justify-center gap-2">
               {totalBalance === 0 ? (
                 <>
-                  <p className="text-3xl font-bold text-gray-800">R$ 0,00</p>
+                  <p className="text-3xl font-bold text-gray-800">{showMyBalance ? 'R$ 0,00' : 'Oculto'}</p>
                   <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">zerado</span>
                 </>
               ) : totalBalance > 0 ? (
                 <>
                   <TrendingUp className="w-6 h-6 text-[#5BC5A7]" />
-                  <p className="text-3xl font-bold text-[#5BC5A7]">R$ {totalBalance.toFixed(2)}</p>
+                  <p className="text-3xl font-bold text-[#5BC5A7]">{showMyBalance ? `R$ ${totalBalance.toFixed(2)}` : 'Oculto'}</p>
                   <span className="text-sm text-[#5BC5A7] bg-green-50 px-3 py-1 rounded-full">te devem</span>
                 </>
               ) : (
                 <>
                   <TrendingDown className="w-6 h-6 text-[#FF6B6B]" />
-                  <p className="text-3xl font-bold text-[#FF6B6B]">R$ {Math.abs(totalBalance).toFixed(2)}</p>
+                  <p className="text-3xl font-bold text-[#FF6B6B]">{showMyBalance ? `R$ ${Math.abs(totalBalance).toFixed(2)}` : 'Oculto'}</p>
                   <span className="text-sm text-[#FF6B6B] bg-red-50 px-3 py-1 rounded-full">voce deve</span>
                 </>
               )}
@@ -395,12 +405,12 @@ export default function Home() {
                         ) : group.balance > 0 ? (
                           <div className="text-right">
                             <p className="text-xs text-gray-600 mb-1">te devem</p>
-                            <p className="text-lg font-semibold text-[#5BC5A7]">R$ {group.balance.toFixed(2)}</p>
+                            <p className="text-lg font-semibold text-[#5BC5A7]">{showMyBalance ? `R$ ${group.balance.toFixed(2)}` : 'Oculto'}</p>
                           </div>
                         ) : (
                           <div className="text-right">
                             <p className="text-xs text-gray-600 mb-1">voce deve</p>
-                            <p className="text-lg font-semibold text-[#FF6B6B]">R$ {Math.abs(group.balance).toFixed(2)}</p>
+                            <p className="text-lg font-semibold text-[#FF6B6B]">{showMyBalance ? `R$ ${Math.abs(group.balance).toFixed(2)}` : 'Oculto'}</p>
                           </div>
                         )}
                       </div>

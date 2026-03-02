@@ -6,10 +6,12 @@ import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import BottomNav from '@/components/ui/bottom-nav'
+import UserAvatar from '@/components/user-avatar'
 
 interface Participant {
   id: string
   name: string
+  avatarKey?: string
 }
 
 interface Group {
@@ -72,11 +74,11 @@ export default function AddExpense() {
         .map((row) => String(row.user_id || '').trim())
         .filter(Boolean)
 
-      let profileMap = new Map<string, { username?: string; full_name?: string }>()
+      let profileMap = new Map<string, { username?: string; full_name?: string; avatar_key?: string }>()
       if (participantIds.length > 0) {
         const { data: profileRows, error: profilesError } = await supabase
           .from('profiles')
-          .select('id,username,full_name')
+          .select('id,username,full_name,avatar_key')
           .in('id', participantIds)
 
         if (profilesError) {
@@ -88,6 +90,7 @@ export default function AddExpense() {
             profileMap.set(id, {
               username: String((row as { username?: string }).username || '').trim(),
               full_name: String((row as { full_name?: string }).full_name || '').trim(),
+              avatar_key: String((row as { avatar_key?: string }).avatar_key || '').trim(),
             })
           }
         }
@@ -98,6 +101,7 @@ export default function AddExpense() {
         return {
           id,
           name: profile?.username || profile?.full_name || 'Usuario',
+          avatarKey: profile?.avatar_key || '',
         }
       })
 
@@ -277,9 +281,7 @@ export default function AddExpense() {
                 }`}
                 type="button"
               >
-                <div className="w-10 h-10 bg-[#5BC5A7] rounded-full flex items-center justify-center">
-                  <span className="text-white font-medium text-sm">{participant.name.charAt(0).toUpperCase()}</span>
-                </div>
+                <UserAvatar name={participant.name} avatarKey={participant.avatarKey} className="w-10 h-10" />
                 <div className="text-left">
                   <p className="text-sm font-medium text-gray-800">{participant.name}</p>
                 </div>
@@ -332,9 +334,7 @@ export default function AddExpense() {
                   type="button"
                 >
                   <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isSelected ? 'bg-[#5BC5A7]' : 'bg-gray-300'}`}>
-                      <span className="text-white font-medium text-sm">{participant.name.charAt(0).toUpperCase()}</span>
-                    </div>
+                    <UserAvatar name={participant.name} avatarKey={participant.avatarKey} className="w-10 h-10" />
                     <p className="text-sm font-medium text-gray-800">{participant.name}</p>
                   </div>
                   {isSelected && <p className="text-sm font-medium text-[#5BC5A7]">R$ {splitAmountPreview}</p>}

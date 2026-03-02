@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import BottomNav from '@/components/ui/bottom-nav'
 import { fetchGroupMembersMap } from '@/lib/group-members'
+import UserAvatar from '@/components/user-avatar'
 
 interface GroupRow {
   id: string
@@ -46,6 +47,8 @@ interface Payment {
   status: 'paid' | 'pending'
   date: string
   groupName: string
+  fromAvatarKey?: string
+  toAvatarKey?: string
 }
 
 function buildChargeMessage(groupName: string, amount: number, pixCode?: string): string {
@@ -64,6 +67,7 @@ export default function Payments() {
   const [savingId, setSavingId] = useState<string | null>(null)
   const [myId, setMyId] = useState<string | null>(null)
   const [selfPaidTotal, setSelfPaidTotal] = useState(0)
+  const [showMyBalance, setShowMyBalance] = useState(true)
   const [chargeTarget, setChargeTarget] = useState<Payment | null>(null)
   const [pixCopyPaste, setPixCopyPaste] = useState('')
 
@@ -83,6 +87,12 @@ export default function Payments() {
 
       const currentUserId = session.user.id
       setMyId(currentUserId)
+      const { data: myProfile } = await supabase
+        .from('profiles')
+        .select('privacy_show_balance')
+        .eq('id', currentUserId)
+        .maybeSingle()
+      setShowMyBalance(Boolean(myProfile?.privacy_show_balance ?? true))
 
       const { data: groupsData, error: groupsError } = await supabase
         .from('groups')
@@ -109,7 +119,7 @@ export default function Payments() {
       if (payError) console.error('payments.payments-load-error', payError)
 
       const groups = (groupsData || []) as GroupRow[]
-      const membersByGroup = await fetchGroupMembersMap(groups.map((group) => group.id))
+      const membersByGroup = await fetchGroupMembersMap(groups.map((group) => group.id), currentUserId)
       const txRows = ((txData as TransactionRow[] | null) || []).map((tx) => ({ ...tx, value: Number(tx.value) || 0 }))
       const payRows = ((payData as PaymentRow[] | null) || []).map((p) => ({ ...p, amount: Number(p.amount) || 0 }))
 
@@ -120,6 +130,12 @@ export default function Payments() {
       const list = membersByGroup.get(groupId) || []
       const found = list.find((p) => String(p.id) === String(userId))
       return found?.name || 'Alguem'
+    }
+
+    const avatarKeyFromGroup = (groupId: string, userId: string) => {
+      const list = membersByGroup.get(groupId) || []
+      const found = list.find((p) => String(p.id) === String(userId))
+      return found?.avatarKey || ''
     }
 
     const pendingByKey = new Map<string, { groupId: string; from: string; to: string; amount: number; date: string; description: string; groupName: string }>()
@@ -193,6 +209,8 @@ export default function Payments() {
         status: 'pending',
         date: item.date,
         groupName: item.groupName,
+        fromAvatarKey: avatarKeyFromGroup(item.groupId, item.from),
+        toAvatarKey: avatarKeyFromGroup(item.groupId, item.to),
       })
     }
 
@@ -210,6 +228,8 @@ export default function Payments() {
         status: 'paid',
         date: p.created_at,
         groupName: groupMap.get(p.group_id)?.name || 'Grupo',
+        fromAvatarKey: avatarKeyFromGroup(p.group_id, p.from_user),
+        toAvatarKey: avatarKeyFromGroup(p.group_id, p.to_user),
       }))
 
       const merged = [...paidFromPayments, ...pendingFromTransactions].sort(
@@ -365,17 +385,17 @@ export default function Payments() {
             <div className="bg-green-50 rounded-xl p-4 text-center">
               <TrendingUp className="w-5 h-5 text-[#5BC5A7] mx-auto mb-2" />
               <p className="text-xs text-gray-600 mb-1">Recebido</p>
-              <p className="text-lg font-bold text-[#5BC5A7]">R$ {totalReceived.toFixed(2)}</p>
+              <p className="text-lg font-bold text-[#5BC5A7]">{showMyBalance ? `R$ ${totalReceived.toFixed(2)}` : 'Oculto'}</p>
             </div>
             <div className="bg-red-50 rounded-xl p-4 text-center">
               <TrendingDown className="w-5 h-5 text-[#FF6B6B] mx-auto mb-2" />
               <p className="text-xs text-gray-600 mb-1">Pago</p>
-              <p className="text-lg font-bold text-[#FF6B6B]">R$ {totalPaid.toFixed(2)}</p>
+              <p className="text-lg font-bold text-[#FF6B6B]">{showMyBalance ? `R$ ${totalPaid.toFixed(2)}` : 'Oculto'}</p>
             </div>
             <div className="bg-orange-50 rounded-xl p-4 text-center">
               <Clock className="w-5 h-5 text-orange-500 mx-auto mb-2" />
               <p className="text-xs text-gray-600 mb-1">Pendente</p>
-              <p className="text-lg font-bold text-orange-500">R$ {totalPending.toFixed(2)}</p>
+              <p className="text-lg font-bold text-orange-500">{showMyBalance ? `R$ ${totalPending.toFixed(2)}` : 'Oculto'}</p>
             </div>
           </div>
         </div>
@@ -414,10 +434,13 @@ export default function Payments() {
                     return (
                       <div key={payment.id} className="p-3 rounded-lg border border-gray-200 bg-gray-50">
                         <div className="flex items-center justify-between mb-2">
-                          <p className="text-sm font-medium text-gray-800">
-                            {payment.from} {'->'} {payment.to}
-                          </p>
-                          <p className="text-sm font-semibold text-gray-800">R$ {payment.amount.toFixed(2)}</p>
+                          <div className="flex items-center gap-2">
+                            <UserAvatar name={payment.from} avatarKey={payment.fromAvatarKey} className="w-7 h-7" textClassName="text-[10px]" />
+                            <p className="text-sm font-medium text-gray-800">
+                              {payment.from} {'->'} {payment.to}
+                            </p>
+                          </div>
+                          <p className="text-sm font-semibold text-gray-800">{showMyBalance ? `R$ ${payment.amount.toFixed(2)}` : 'Oculto'}</p>
                         </div>
                         <div className="grid grid-cols-2 gap-2">
                           <button
@@ -452,6 +475,7 @@ export default function Payments() {
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
+                      <UserAvatar name={payment.from} avatarKey={payment.fromAvatarKey} className="w-7 h-7" textClassName="text-[10px]" />
                       <h3 className="text-base font-medium text-gray-800">{payment.description}</h3>
                       <CheckCircle className="w-4 h-4 text-[#5BC5A7]" />
                     </div>
@@ -459,7 +483,7 @@ export default function Payments() {
                     <p className="text-xs text-gray-500 mt-1">{payment.groupName}</p>
                   </div>
                   <div className="text-right ml-4">
-                    <p className="text-lg font-semibold text-gray-800">R$ {payment.amount.toFixed(2)}</p>
+                    <p className="text-lg font-semibold text-gray-800">{showMyBalance ? `R$ ${payment.amount.toFixed(2)}` : 'Oculto'}</p>
                     <span className="text-xs px-2 py-1 rounded-full bg-green-50 text-[#5BC5A7]">Pago</span>
                   </div>
                 </div>

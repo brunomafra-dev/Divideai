@@ -1,0 +1,41 @@
+﻿<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'>
+  <defs>
+    <linearGradient id='bg' x1='0' y1='0' x2='1' y2='1'>
+      <stop offset='0%' stop-color='#FB7185'/>
+      <stop offset='100%' stop-color='#9F1239'/>
+    </linearGradient>
+    <radialGradient id='gloss' cx='28%' cy='22%' r='72%'>
+      <stop offset='0%' stop-color='#ffffff' stop-opacity='0.25'/>
+      <stop offset='100%' stop-color='#ffffff' stop-opacity='0'/>
+    </radialGradient>
+    <filter id='drop' x='-20%' y='-20%' width='140%' height='140%'>
+      <feDropShadow dx='0' dy='2' stdDeviation='2.2' flood-color='#000000' flood-opacity='0.22'/>
+    </filter>
+  </defs>
+
+  <rect width='160' height='160' rx='80' fill='url(#bg)'/>
+  <rect width='160' height='160' rx='80' fill='url(#gloss)'/>
+
+  <ellipse cx='80' cy='84' rx='32' ry='34' fill='#F1CCAF' filter='url(#drop)'/>
+  <path d='M42 74c6-21 19-33 38-33s32 12 38 33c-9-7-22-10-38-10s-29 3-38 10z' fill='#6B21A8'/><path d='M44 78c-1 10-1 20 0 29h14c-2-10-2-20 0-29z' fill='#6B21A8'/><path d='M102 78c1 10 1 20 0 29h14c2-10 2-20 0-29z' fill='#6B21A8'/>
+
+  <path d='M63 72c2-3 6-4 10-2' stroke='#6B21A8' stroke-width='2.2' stroke-linecap='round'/>
+  <path d='M87 72c2-2 7-1 10 2' stroke='#6B21A8' stroke-width='2.2' stroke-linecap='round'/>
+  <ellipse cx='68' cy='76' rx='3' ry='3.2' fill='#111827'/>
+  <ellipse cx='92' cy='76' rx='3' ry='3.2' fill='#111827'/>
+  <circle cx='69' cy='75' r='0.8' fill='#ffffff' opacity='0.6'/>
+  <circle cx='93' cy='75' r='0.8' fill='#ffffff' opacity='0.6'/>
+
+  <path d='M67 90c5 4 21 4 26 0' stroke='#AA6056' stroke-width='2.8' fill='none' stroke-linecap='round'/>
+  <ellipse cx='61' cy='84' rx='4.8' ry='2.3' fill='#EA8E84' opacity='0.24'/>
+  <ellipse cx='99' cy='84' rx='4.8' ry='2.3' fill='#EA8E84' opacity='0.24'/>
+
+  <path d='M34 156c8-30 24-47 46-47s38 17 46 47H34z' fill='#F43F5E'/>
+  <path d='M52 128c7-6 15-10 28-10s21 4 28 10' stroke='#FBCFE8' stroke-width='4' stroke-linecap='round' opacity='0.72'/>
+  <path d='M72 118h16v8H72z' fill='#FBCFE8' opacity='0.45'/>
+
+  
+
+  <circle cx='24' cy='24' r='8' fill='#ffffff' opacity='0.12'/>
+  <circle cx='132' cy='136' r='10' fill='#ffffff' opacity='0.08'/>
+</svg>

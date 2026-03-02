@@ -6,11 +6,13 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import BottomNav from "@/components/ui/bottom-nav";
+import UserAvatar from "@/components/user-avatar";
 
 interface Participant {
   id: string;
   name: string;
   userId: string | null;
+  avatarKey?: string;
 }
 
 interface TransactionRow {
@@ -97,11 +99,11 @@ export default function EditExpensePage() {
         .map((row) => String((row as { user_id?: string | null }).user_id || "").trim())
         .filter(Boolean);
 
-      let profileMap = new Map<string, { username?: string; full_name?: string }>();
+      let profileMap = new Map<string, { username?: string; full_name?: string; avatar_key?: string }>();
       if (userIds.length > 0) {
         const { data: profileRows, error: profilesError } = await supabase
           .from("profiles")
-          .select("id,username,full_name")
+          .select("id,username,full_name,avatar_key")
           .in("id", userIds);
 
         if (profilesError) {
@@ -113,6 +115,7 @@ export default function EditExpensePage() {
             profileMap.set(id, {
               username: String((row as { username?: string }).username || "").trim(),
               full_name: String((row as { full_name?: string }).full_name || "").trim(),
+              avatar_key: String((row as { avatar_key?: string }).avatar_key || "").trim(),
             });
           }
         }
@@ -129,6 +132,7 @@ export default function EditExpensePage() {
           id: participantId,
           name,
           userId,
+          avatarKey: profile?.avatar_key || "",
         };
       });
 
@@ -361,7 +365,10 @@ export default function EditExpensePage() {
               className={`w-full text-left p-3 border rounded-lg mt-2 ${payerId === participant.id ? "border-[#5BC5A7] bg-green-50" : ""}`}
               type="button"
             >
-              {participant.name}
+              <span className="flex items-center gap-3">
+                <UserAvatar name={participant.name} avatarKey={participant.avatarKey} className="w-8 h-8" textClassName="text-xs" />
+                <span>{participant.name}</span>
+              </span>
             </button>
           ))}
         </div>
@@ -378,7 +385,10 @@ export default function EditExpensePage() {
                   className={`w-full p-3 rounded-lg border flex justify-between items-center ${isSelected ? "border-[#5BC5A7] bg-green-50" : "border-gray-200"}`}
                   type="button"
                 >
-                  <span>{participant.name}</span>
+                  <span className="flex items-center gap-3">
+                    <UserAvatar name={participant.name} avatarKey={participant.avatarKey} className="w-8 h-8" textClassName="text-xs" />
+                    <span>{participant.name}</span>
+                  </span>
                   <span className="text-sm text-gray-600">{isSelected ? "participa" : "não"}</span>
                 </button>
               );
@@ -412,7 +422,10 @@ export default function EditExpensePage() {
 
               {participants.map((participant) => (
                 <div key={participant.id} className="flex justify-between items-center border p-2 rounded-lg">
-                  <span>{participant.name}</span>
+                  <span className="flex items-center gap-3">
+                    <UserAvatar name={participant.name} avatarKey={participant.avatarKey} className="w-8 h-8" textClassName="text-xs" />
+                    <span>{participant.name}</span>
+                  </span>
                   <input
                     type="number"
                     min={0}

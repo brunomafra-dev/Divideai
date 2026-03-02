@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import BottomNav from '@/components/ui/bottom-nav'
 import { fetchGroupMembersMap, type GroupMember } from '@/lib/group-members'
+import UserAvatar from '@/components/user-avatar'
 
 type GroupRow = {
   id: string
@@ -36,6 +37,8 @@ type ActivityItem = {
   description: string
   groupName: string
   createdAt: string
+  actorName: string
+  actorAvatarKey?: string
 }
 
 function formatBRL(n: number) {
@@ -89,7 +92,7 @@ export default function Activity() {
       setGroups(safeGroups)
 
       try {
-        const membersMap = await fetchGroupMembersMap(safeGroups.map((group) => group.id))
+        const membersMap = await fetchGroupMembersMap(safeGroups.map((group) => group.id), session.user.id)
         setMembersByGroup(membersMap)
       } catch (error) {
         console.error('activity.members-load-error', error)
@@ -140,6 +143,12 @@ export default function Activity() {
     return found?.name || null
   }
 
+  const userAvatarFromGroup = (groupId: string, userId: string) => {
+    const participants = membersByGroup.get(groupId) || []
+    const found = participants.find((p) => String(p.id) === String(userId))
+    return found?.avatarKey || ''
+  }
+
   const activities: ActivityItem[] = useMemo(() => {
     const items: ActivityItem[] = []
 
@@ -157,6 +166,8 @@ export default function Activity() {
         description: `${payerName} pagou ${formatBRL(tx.value)}`,
         groupName,
         createdAt: tx.created_at,
+        actorName: payerName,
+        actorAvatarKey: userAvatarFromGroup(tx.group_id, tx.payer_id),
       })
     }
 
@@ -178,6 +189,8 @@ export default function Activity() {
         description: `${fromName} pagou ${toName} ${formatBRL(pay.amount)}`,
         groupName,
         createdAt: pay.created_at,
+        actorName: fromName,
+        actorAvatarKey: userAvatarFromGroup(pay.group_id, pay.from_user),
       })
     }
 
@@ -223,9 +236,7 @@ export default function Activity() {
                 className="bg-white rounded-xl p-4 shadow-sm border border-gray-100"
               >
                 <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 bg-[#5BC5A7]/10 rounded-full flex items-center justify-center flex-shrink-0">
-                    <Clock className="w-5 h-5 text-[#5BC5A7]" />
-                  </div>
+                  <UserAvatar name={activity.actorName} avatarKey={activity.actorAvatarKey} className="w-10 h-10 flex-shrink-0" />
                   <div className="flex-1">
                     <p className="text-sm font-medium text-gray-800">
                       {activity.description}

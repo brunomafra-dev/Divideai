@@ -3,9 +3,10 @@ import { supabase } from '@/lib/supabase'
 export type GroupMember = {
   id: string
   name: string
+  avatarKey?: string
 }
 
-export async function fetchGroupMembersMap(groupIds: string[]) {
+export async function fetchGroupMembersMap(groupIds: string[], viewerUserId?: string | null) {
   const map = new Map<string, GroupMember[]>()
   if (groupIds.length === 0) return map
 
@@ -26,16 +27,29 @@ export async function fetchGroupMembersMap(groupIds: string[]) {
     .filter((row) => row.groupId && row.userId)
 
   const userIds = Array.from(new Set(pairs.map((row) => row.userId)))
-  const profileMap = new Map<string, { username?: string; full_name?: string }>()
+  const profileMap = new Map<string, { username?: string; full_name?: string; privacy_profile_visible?: boolean; avatar_key?: string }>()
 
   if (userIds.length > 0) {
-    const { data: profileRows, error: profilesError } = await supabase
+    let profileRows: Array<Record<string, unknown>> | null = null
+
+    const preferred = await supabase
       .from('profiles')
-      .select('id,username,full_name')
+      .select('id,username,full_name,privacy_profile_visible,avatar_key')
       .in('id', userIds)
 
-    if (profilesError) {
-      throw profilesError
+    if (preferred.error) {
+      const fallback = await supabase
+        .from('profiles')
+        .select('id,username,full_name')
+        .in('id', userIds)
+
+      if (fallback.error) {
+        throw fallback.error
+      }
+
+      profileRows = (fallback.data as Array<Record<string, unknown>> | null) ?? null
+    } else {
+      profileRows = (preferred.data as Array<Record<string, unknown>> | null) ?? null
     }
 
     for (const row of profileRows ?? []) {
@@ -44,6 +58,8 @@ export async function fetchGroupMembersMap(groupIds: string[]) {
       profileMap.set(id, {
         username: String((row as { username?: string }).username || '').trim(),
         full_name: String((row as { full_name?: string }).full_name || '').trim(),
+        privacy_profile_visible: Boolean((row as { privacy_profile_visible?: boolean }).privacy_profile_visible),
+        avatar_key: String((row as { avatar_key?: string }).avatar_key || '').trim(),
       })
     }
   }
@@ -54,10 +70,13 @@ export async function fetchGroupMembersMap(groupIds: string[]) {
 
   for (const pair of pairs) {
     const profile = profileMap.get(pair.userId)
-    const name = profile?.username || profile?.full_name || 'Usuario'
+    const isSelf = Boolean(viewerUserId && String(viewerUserId) === String(pair.userId))
+    const visible = Boolean(profile?.privacy_profile_visible || isSelf)
+    const name = visible ? (profile?.username || profile?.full_name || 'Usuario') : 'Participante'
     map.get(pair.groupId)?.push({
       id: pair.userId,
       name,
+      avatarKey: visible ? (profile?.avatar_key || '') : '',
     })
   }
 
