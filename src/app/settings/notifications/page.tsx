@@ -98,24 +98,24 @@ export default function NotificationsPage() {
   ]
 
   return (
-    <div className="min-h-screen bg-[#F7F7F7] pb-[calc(6rem+env(safe-area-inset-bottom))]">
+    <div className="min-h-screen bg-[#F7F7F7] pb-[calc(6rem+env(safe-area-inset-bottom))] page-fade">
       <header className="bg-white shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center gap-3">
           <Link href="/settings">
-            <button type="button" className="text-gray-600 hover:text-gray-800">
+            <button type="button" className="tap-target pressable text-gray-600 hover:text-gray-800">
               <ArrowLeft className="w-6 h-6" />
             </button>
           </Link>
-          <h1 className="text-lg font-semibold text-gray-800">Notificacoes</h1>
+          <h1 className="section-title">Notificacoes</h1>
         </div>
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-6 space-y-3">
         {loading ? (
-          <div className="bg-white rounded-xl p-4 text-sm text-gray-600">Carregando...</div>
+          <div className="surface-card p-4 text-sm text-gray-600">Carregando...</div>
         ) : (
           rows.map((row) => (
-            <div key={row.column} className="bg-white rounded-xl p-4 flex items-center justify-between">
+            <div key={row.column} className="surface-card p-4 flex items-center justify-between">
               <span className="text-sm text-gray-800">{row.label}</span>
               <button
                 type="button"
@@ -125,7 +125,7 @@ export default function NotificationsPage() {
                   row.setLocal(next)
                   updateSetting(row.column, next)
                 }}
-                className={`w-12 h-7 rounded-full p-1 transition ${row.value ? 'bg-[#5BC5A7]' : 'bg-gray-300'} disabled:opacity-50`}
+                className={`tap-target pressable w-12 h-7 rounded-full p-1 transition ${row.value ? 'bg-[#5BC5A7]' : 'bg-gray-300'} disabled:opacity-50`}
               >
                 <span className={`block w-5 h-5 rounded-full bg-white transition ${row.value ? 'translate-x-5' : 'translate-x-0'}`} />
               </button>

@@ -44,15 +44,15 @@ export default function Settings() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F7F7F7] pb-[calc(6rem+env(safe-area-inset-bottom))]">
+    <div className="min-h-screen bg-[#F7F7F7] pb-[calc(6rem+env(safe-area-inset-bottom))] page-fade">
       <header className="bg-white shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
           <Link href="/">
-            <button className="text-gray-600 hover:text-gray-800" type="button">
+            <button className="tap-target pressable text-gray-600 hover:text-gray-800" type="button">
               <ArrowLeft className="w-6 h-6" />
             </button>
           </Link>
-          <h1 className="text-lg font-semibold text-gray-800">Conta</h1>
+          <h1 className="section-title">Conta</h1>
           <div className="w-6" />
         </div>
       </header>
@@ -64,45 +64,45 @@ export default function Settings() {
             <h2 className="text-2xl font-bold">Divide Ai Premium</h2>
           </div>
           <p className="text-white/90 mb-4">Plano atual: {isPremium ? 'Premium' : 'Free'}</p>
-          <button className="w-full bg-white text-[#5BC5A7] py-3 rounded-lg font-semibold hover:bg-gray-50 transition-colors" type="button">
+          <button className="w-full tap-target pressable bg-white text-[#5BC5A7] py-3 rounded-lg font-semibold hover:bg-gray-50 transition-colors" type="button">
             {isPremium ? 'Gerenciar assinatura' : 'Assinar Premium'}
           </button>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div className="surface-card overflow-hidden">
           <h3 className="text-sm font-medium text-gray-700 px-4 py-3 bg-gray-50">Conta</h3>
           <div className="divide-y divide-gray-100">
-            <Link href="/profile" className="px-4 py-3 hover:bg-gray-50 flex items-center justify-between">
+            <Link href="/profile" className="tap-target px-4 py-3 hover:bg-gray-50 flex items-center justify-between transition-colors">
               <span className="text-sm text-gray-800">Perfil</span>
               <ChevronRight className="w-4 h-4 text-gray-500" />
             </Link>
-            <Link href="/settings/notifications" className="px-4 py-3 hover:bg-gray-50 flex items-center justify-between">
+            <Link href="/settings/notifications" className="tap-target px-4 py-3 hover:bg-gray-50 flex items-center justify-between transition-colors">
               <span className="text-sm text-gray-800">Notificacoes</span>
               <ChevronRight className="w-4 h-4 text-gray-500" />
             </Link>
-            <Link href="/settings/privacy" className="px-4 py-3 hover:bg-gray-50 flex items-center justify-between">
+            <Link href="/settings/privacy" className="tap-target px-4 py-3 hover:bg-gray-50 flex items-center justify-between transition-colors">
               <span className="text-sm text-gray-800">Privacidade</span>
               <ChevronRight className="w-4 h-4 text-gray-500" />
             </Link>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div className="surface-card overflow-hidden">
           <h3 className="text-sm font-medium text-gray-700 px-4 py-3 bg-gray-50">Sobre</h3>
           <div className="divide-y divide-gray-100">
-            <Link href="/settings/terms" className="px-4 py-3 hover:bg-gray-50 flex items-center justify-between">
+            <Link href="/settings/terms" className="tap-target px-4 py-3 hover:bg-gray-50 flex items-center justify-between transition-colors">
               <span className="text-sm text-gray-800">Termos de uso</span>
               <ChevronRight className="w-4 h-4 text-gray-500" />
             </Link>
-            <Link href="/settings/privacy-policy" className="px-4 py-3 hover:bg-gray-50 flex items-center justify-between">
+            <Link href="/settings/privacy-policy" className="tap-target px-4 py-3 hover:bg-gray-50 flex items-center justify-between transition-colors">
               <span className="text-sm text-gray-800">Politica de privacidade</span>
               <ChevronRight className="w-4 h-4 text-gray-500" />
             </Link>
-            <Link href="/settings/support" className="px-4 py-3 hover:bg-gray-50 flex items-center justify-between">
+            <Link href="/settings/support" className="tap-target px-4 py-3 hover:bg-gray-50 flex items-center justify-between transition-colors">
               <span className="text-sm text-gray-800">Ajuda e suporte</span>
               <ChevronRight className="w-4 h-4 text-gray-500" />
             </Link>
-            <Link href="/settings/about" className="px-4 py-3 hover:bg-gray-50 flex items-center justify-between">
+            <Link href="/settings/about" className="tap-target px-4 py-3 hover:bg-gray-50 flex items-center justify-between transition-colors">
               <span className="text-sm text-gray-500">Versao {appVersion}</span>
               <ChevronRight className="w-4 h-4 text-gray-400" />
             </Link>
@@ -117,7 +117,7 @@ export default function Settings() {
 
         <button
           onClick={handleLogout}
-          className="w-full bg-white rounded-xl shadow-sm px-4 py-3 text-red-600 font-medium hover:bg-red-50 transition-colors flex items-center justify-center gap-2"
+          className="w-full tap-target pressable bg-white rounded-xl shadow-sm px-4 py-3 text-red-600 font-medium hover:bg-red-50 transition-colors flex items-center justify-center gap-2"
           type="button"
         >
           <LogOut className="w-4 h-4" />

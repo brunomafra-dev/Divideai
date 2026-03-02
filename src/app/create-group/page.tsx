@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase'
 import { ensureProfileForUser } from '@/lib/profiles'
 import { generateSecureInviteToken } from '@/lib/invites'
 import { buildInviteLink } from '@/lib/site-url'
+import BottomNav from '@/components/ui/bottom-nav'
 
 type Category = 'apartment' | 'house' | 'trip' | 'other'
 
@@ -35,6 +36,7 @@ export default function CreateGroup() {
   const [generateInviteOnCreate, setGenerateInviteOnCreate] = useState(true)
   const [createdGroupId, setCreatedGroupId] = useState<string | null>(null)
   const [inviteLink, setInviteLink] = useState('')
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string) => {
     return await Promise.race([
@@ -52,11 +54,12 @@ export default function CreateGroup() {
     const trimmedGroupName = groupName.trim()
 
     if (!trimmedGroupName) {
-      alert('Adicione um nome para o grupo')
+      setFeedback({ type: 'error', text: 'Adicione um nome para o grupo.' })
       return
     }
 
     setLoading(true)
+    setFeedback(null)
     try {
       const {
         data: { user },
@@ -64,7 +67,7 @@ export default function CreateGroup() {
       } = await supabase.auth.getUser()
 
       if (userError || !user) {
-        alert('Usuario nao autenticado')
+        setFeedback({ type: 'error', text: 'Usuário não autenticado.' })
         return
       }
 
@@ -94,7 +97,7 @@ export default function CreateGroup() {
         .single()
 
       if (error) {
-        alert(error.message || 'Erro ao criar grupo')
+        setFeedback({ type: 'error', text: error.message || 'Erro ao criar grupo.' })
         return
       }
 
@@ -105,7 +108,7 @@ export default function CreateGroup() {
       })
 
       if (participantInsertError && participantInsertError.code !== '23505') {
-        alert(participantInsertError.message || 'Erro ao criar participante do grupo')
+        setFeedback({ type: 'error', text: participantInsertError.message || 'Erro ao criar participante do grupo.' })
         return
       }
 
@@ -124,6 +127,7 @@ export default function CreateGroup() {
         if (!inviteError) {
           setInviteLink(buildInviteLink(token))
           setCreatedGroupId(data.id)
+          setFeedback({ type: 'success', text: 'Grupo criado com sucesso. Link de convite gerado.' })
           return
         }
 
@@ -141,25 +145,25 @@ export default function CreateGroup() {
         message: String(error?.message || ''),
         raw: error,
       })
-      alert('Erro ao criar grupo. Tente novamente.')
+      setFeedback({ type: 'error', text: 'Erro ao criar grupo. Tente novamente.' })
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen bg-[#F7F7F7]">
+    <div className="min-h-screen bg-[#F7F7F7] flex flex-col overflow-x-hidden page-fade">
       <header className="bg-white shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
           <Link href="/">
-            <button className="text-gray-600 hover:text-gray-800" type="button">
+            <button className="tap-target pressable text-gray-600 hover:text-gray-800" type="button">
               <ArrowLeft className="w-6 h-6" />
             </button>
           </Link>
-          <h1 className="text-lg font-semibold text-gray-800">Criar grupo</h1>
+          <h1 className="section-title">Criar grupo</h1>
           <button
             onClick={handleCreateGroup}
-            className="text-[#5BC5A7] font-medium hover:text-[#4AB396]"
+            className="tap-target pressable text-[#5BC5A7] font-medium hover:text-[#4AB396]"
             disabled={loading}
             type="button"
           >
@@ -168,8 +172,13 @@ export default function CreateGroup() {
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-4 py-6 space-y-6">
-        <div className="bg-white rounded-xl p-4 shadow-sm">
+      <main className="flex-1 overflow-y-auto max-w-4xl w-full mx-auto px-4 py-6 pb-[calc(8rem+env(safe-area-inset-bottom))] space-y-6">
+        {feedback && (
+          <div className={`rounded-lg px-3 py-2 text-sm ${feedback.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+            {feedback.text}
+          </div>
+        )}
+          <div className="surface-card p-4">
           <label className="block text-sm font-medium text-gray-700 mb-2">Nome do grupo</label>
           <input
             type="text"
@@ -180,7 +189,7 @@ export default function CreateGroup() {
           />
         </div>
 
-        <div className="bg-white rounded-xl p-4 shadow-sm">
+          <div className="surface-card p-4">
           <label className="block text-sm font-medium text-gray-700 mb-3">Categoria</label>
           <div className="grid grid-cols-4 gap-3">
             {categories.map((cat) => (
@@ -199,7 +208,7 @@ export default function CreateGroup() {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl p-4 shadow-sm">
+          <div className="surface-card p-4">
           <label className="flex items-center gap-3">
             <input
               type="checkbox"
@@ -215,7 +224,7 @@ export default function CreateGroup() {
         </div>
 
         {inviteLink && createdGroupId && (
-          <div className="bg-white rounded-xl p-4 shadow-sm space-y-3">
+          <div className="surface-card p-4 space-y-3">
             <p className="text-sm font-medium text-gray-700">Link de convite gerado</p>
             <div className="flex items-center gap-2">
               <input
@@ -229,7 +238,7 @@ export default function CreateGroup() {
                 onClick={async () => {
                   await navigator.clipboard.writeText(inviteLink)
                 }}
-                className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100"
+                className="tap-target pressable px-3 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100"
               >
                 <Copy className="w-4 h-4" />
               </button>
@@ -237,7 +246,7 @@ export default function CreateGroup() {
             <button
               type="button"
               onClick={() => router.push(`/group/${createdGroupId}`)}
-              className="w-full py-3 bg-[#5BC5A7] text-white rounded-xl font-medium"
+              className="w-full tap-target pressable py-3 bg-[#5BC5A7] text-white rounded-xl font-medium"
             >
               Ir para o grupo
             </button>
@@ -247,12 +256,13 @@ export default function CreateGroup() {
         <button
           onClick={handleCreateGroup}
           disabled={loading || Boolean(inviteLink)}
-          className="w-full py-4 bg-[#5BC5A7] text-white rounded-xl font-medium"
+          className="w-full tap-target pressable py-4 bg-[#5BC5A7] text-white rounded-xl font-medium"
           type="button"
         >
           {loading ? 'Criando...' : 'Criar grupo'}
         </button>
       </main>
+      <BottomNav />
     </div>
   )
 }

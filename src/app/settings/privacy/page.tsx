@@ -69,24 +69,24 @@ export default function PrivacySettingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F7F7F7] pb-[calc(6rem+env(safe-area-inset-bottom))]">
+    <div className="min-h-screen bg-[#F7F7F7] pb-[calc(6rem+env(safe-area-inset-bottom))] page-fade">
       <header className="bg-white shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center gap-3">
           <Link href="/settings">
-            <button type="button" className="text-gray-600 hover:text-gray-800">
+            <button type="button" className="tap-target pressable text-gray-600 hover:text-gray-800">
               <ArrowLeft className="w-6 h-6" />
             </button>
           </Link>
-          <h1 className="text-lg font-semibold text-gray-800">Privacidade</h1>
+          <h1 className="section-title">Privacidade</h1>
         </div>
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-6 space-y-3">
         {loading ? (
-          <div className="bg-white rounded-xl p-4 text-sm text-gray-600">Carregando...</div>
+          <div className="surface-card p-4 text-sm text-gray-600">Carregando...</div>
         ) : (
           <>
-            <div className="bg-white rounded-xl p-4 flex items-center justify-between">
+            <div className="surface-card p-4 flex items-center justify-between">
               <span className="text-sm text-gray-800">Exibir meu perfil para participantes</span>
               <button
                 type="button"
@@ -96,13 +96,13 @@ export default function PrivacySettingsPage() {
                   setProfileVisible(next)
                   updateSetting('privacy_profile_visible', next)
                 }}
-                className={`w-12 h-7 rounded-full p-1 transition ${profileVisible ? 'bg-[#5BC5A7]' : 'bg-gray-300'} disabled:opacity-50`}
+                className={`tap-target pressable w-12 h-7 rounded-full p-1 transition ${profileVisible ? 'bg-[#5BC5A7]' : 'bg-gray-300'} disabled:opacity-50`}
               >
                 <span className={`block w-5 h-5 rounded-full bg-white transition ${profileVisible ? 'translate-x-5' : 'translate-x-0'}`} />
               </button>
             </div>
 
-            <div className="bg-white rounded-xl p-4 flex items-center justify-between">
+            <div className="surface-card p-4 flex items-center justify-between">
               <span className="text-sm text-gray-800">Exibir meu saldo nos grupos</span>
               <button
                 type="button"
@@ -112,7 +112,7 @@ export default function PrivacySettingsPage() {
                   setShowBalance(next)
                   updateSetting('privacy_show_balance', next)
                 }}
-                className={`w-12 h-7 rounded-full p-1 transition ${showBalance ? 'bg-[#5BC5A7]' : 'bg-gray-300'} disabled:opacity-50`}
+                className={`tap-target pressable w-12 h-7 rounded-full p-1 transition ${showBalance ? 'bg-[#5BC5A7]' : 'bg-gray-300'} disabled:opacity-50`}
               >
                 <span className={`block w-5 h-5 rounded-full bg-white transition ${showBalance ? 'translate-x-5' : 'translate-x-0'}`} />
               </button>

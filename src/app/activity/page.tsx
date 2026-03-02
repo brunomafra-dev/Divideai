@@ -2,7 +2,7 @@
 
 import { ArrowLeft, Clock } from 'lucide-react'
 import Link from 'next/link'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import BottomNav from '@/components/ui/bottom-nav'
@@ -70,10 +70,12 @@ export default function Activity() {
   const [membersByGroup, setMembersByGroup] = useState<Map<string, GroupMember[]>>(new Map())
   const [transactions, setTransactions] = useState<TransactionRow[]>([])
   const [payments, setPayments] = useState<PaymentRow[]>([])
+  const hasLoadedOnceRef = useRef(false)
 
-  useEffect(() => {
-    const run = async () => {
-      setLoading(true)
+  const run = useCallback(async (showBlockingLoading: boolean = false) => {
+      if (showBlockingLoading || !hasLoadedOnceRef.current) {
+        setLoading(true)
+      }
 
       const {
         data: { session },
@@ -125,11 +127,42 @@ export default function Activity() {
         })))
       )
 
+      hasLoadedOnceRef.current = true
       setLoading(false)
-    }
-
-    run()
   }, [router])
+
+  useEffect(() => {
+    run(true)
+
+    const channel = supabase
+      .channel('activity-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => {
+        run(false)
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, () => {
+        run(false)
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'participants' }, () => {
+        run(false)
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'groups' }, () => {
+        run(false)
+      })
+      .subscribe()
+
+    const onFocus = () => run(false)
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') run(false)
+    }
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisibility)
+
+    return () => {
+      supabase.removeChannel(channel)
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
+  }, [run])
 
   const groupMap = useMemo(() => {
     const m = new Map<string, GroupRow>()
@@ -207,22 +240,22 @@ export default function Activity() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F7F7F7] flex flex-col overflow-x-hidden">
+    <div className="min-h-screen bg-[#F7F7F7] flex flex-col overflow-x-hidden page-fade">
       <header className="bg-white shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
           <Link href="/">
-            <button className="text-gray-600 hover:text-gray-800" aria-label="Voltar" type="button">
+            <button className="tap-target pressable text-gray-600 hover:text-gray-800" aria-label="Voltar" type="button">
               <ArrowLeft className="w-6 h-6" />
             </button>
           </Link>
-          <h1 className="text-lg font-semibold text-gray-800">Atividade</h1>
+          <h1 className="section-title">Atividade</h1>
           <div className="w-6" />
         </div>
       </header>
 
       <main className="flex-1 overflow-y-auto max-w-4xl w-full mx-auto px-4 py-6 pb-[calc(8rem+env(safe-area-inset-bottom))]">
         {activities.length === 0 ? (
-          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 text-center">
+          <div className="surface-card p-6 text-center">
             <p className="text-gray-700 font-medium">Sem atividades por enquanto</p>
             <p className="text-sm text-gray-500 mt-1">
               Quando alguem adicionar gastos ou pagamentos, eles aparecem aqui.
@@ -233,7 +266,7 @@ export default function Activity() {
             {activities.map((activity) => (
               <div
                 key={activity.id}
-                className="bg-white rounded-xl p-4 shadow-sm border border-gray-100"
+                className="surface-card p-4 surface-card-hover"
               >
                 <div className="flex items-start gap-3">
                   <UserAvatar name={activity.actorName} avatarKey={activity.actorAvatarKey} className="w-10 h-10 flex-shrink-0" />

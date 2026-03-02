@@ -11,7 +11,6 @@ import UserAvatar from "@/components/user-avatar";
 interface Participant {
   id: string;
   name: string;
-  userId: string | null;
   avatarKey?: string;
 }
 
@@ -46,16 +45,21 @@ export default function EditExpensePage() {
 
   const [originalPayerId, setOriginalPayerId] = useState("");
   const [expenseStatus, setExpenseStatus] = useState("");
+  const [paidBySettlement, setPaidBySettlement] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [feedback, setFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-  const canEdit = Boolean(currentUserId && originalPayerId && currentUserId === originalPayerId);
-  const canDelete = canEdit && expenseStatus === "paid";
+  const isCreator = Boolean(currentUserId && originalPayerId && currentUserId === originalPayerId);
+  const isPaid = String(expenseStatus).toLowerCase() === "paid" || paidBySettlement;
+  const canEdit = isCreator && !isPaid;
+  const canDelete = isCreator && isPaid;
 
   useEffect(() => {
     if (!groupId || !expenseId) return;
 
     const load = async () => {
       setLoading(true);
+      setPaidBySettlement(false);
 
       const {
         data: { session },
@@ -85,7 +89,7 @@ export default function EditExpensePage() {
 
       const { data: participantRows, error: participantError } = await supabase
         .from("participants")
-        .select("id,user_id,display_name")
+        .select("id,user_id")
         .eq("group_id", groupId);
 
       if (participantError) {
@@ -94,9 +98,16 @@ export default function EditExpensePage() {
         return;
       }
 
-      const rows = participantRows ?? [];
-      const userIds = rows
-        .map((row) => String((row as { user_id?: string | null }).user_id || "").trim())
+      const participantRowsSafe = ((participantRows as Array<{ id?: string | null; user_id?: string | null }> | null) ?? []);
+      const legacyParticipantToUserId = new Map<string, string>();
+      for (const row of participantRowsSafe) {
+        const legacyId = String(row.id || "").trim();
+        const userId = String(row.user_id || "").trim();
+        if (legacyId && userId) legacyParticipantToUserId.set(legacyId, userId);
+      }
+
+      const userIds = participantRowsSafe
+        .map((row) => String(row.user_id || "").trim())
         .filter(Boolean);
 
       let profileMap = new Map<string, { username?: string; full_name?: string; avatar_key?: string }>();
@@ -121,17 +132,12 @@ export default function EditExpensePage() {
         }
       }
 
-      const normalizedParticipants: Participant[] = rows.map((row) => {
-        const participantId = String((row as { id?: string }).id || "").trim();
-        const userId = String((row as { user_id?: string | null }).user_id || "").trim() || null;
-        const profile = userId ? profileMap.get(userId) : null;
-        const displayName = String((row as { display_name?: string | null }).display_name || "").trim();
-        const name = profile?.username || profile?.full_name || displayName || "Participante";
-
+      const normalizedParticipants: Participant[] = userIds.map((userId) => {
+        const profile = profileMap.get(userId);
+        const name = profile?.username || profile?.full_name || "Participante";
         return {
-          id: participantId,
+          id: userId,
           name,
-          userId,
           avatarKey: profile?.avatar_key || "",
         };
       });
@@ -144,29 +150,96 @@ export default function EditExpensePage() {
       }
       setWeights(defaultWeights);
 
-      const { data: tx, error: txError } = await supabase
-        .from("transactions")
-        .select("id,value,description,payer_id,participants,splits,status")
-        .eq("id", expenseId)
-        .single();
+      const txSelectCandidates = [
+        "id,value,description,payer_id,participants,splits,status",
+        "id,value,description,payer_id,splits,status",
+        "id,value,description,payer_id,participants,status",
+        "id,value,description,payer_id,status",
+        "id,value,description,payer_id,participants,splits",
+        "id,value,description,payer_id,splits",
+        "id,value,description,payer_id,participants",
+        "id,value,description,payer_id",
+      ];
+
+      let tx: TransactionRow | null = null;
+      let txError: any = null;
+
+      for (const selectClause of txSelectCandidates) {
+        const attempt = await supabase
+          .from("transactions")
+          .select(selectClause)
+          .eq("id", expenseId)
+          .single();
+
+        if (!attempt.error && attempt.data) {
+          tx = attempt.data as TransactionRow;
+          txError = null;
+          break;
+        }
+
+        txError = attempt.error;
+      }
 
       if (txError || !tx) {
-        console.error("edit-expense.transaction-load-error", txError);
+        console.error("edit-expense.transaction-load-error", {
+          code: txError?.code,
+          message: txError?.message,
+          details: txError?.details,
+          hint: txError?.hint,
+          expenseId,
+          groupId,
+        });
+        setFeedback({ type: "error", text: "Erro ao carregar gasto para edição." });
         setLoading(false);
         return;
       }
 
       const transaction = tx as TransactionRow;
+      const normalizedPayerId = legacyParticipantToUserId.get(String(transaction.payer_id || "").trim()) || String(transaction.payer_id || "").trim();
       setValue(String(Number(transaction.value) || ""));
       setDescription(String(transaction.description || ""));
-      setPayerId(String(transaction.payer_id || ""));
-      setOriginalPayerId(String(transaction.payer_id || ""));
+      setPayerId(normalizedPayerId);
+      setOriginalPayerId(normalizedPayerId);
       setExpenseStatus(String(transaction.status || ""));
 
       const participantIdsFromTx = Array.isArray(transaction.participants)
-        ? transaction.participants.map((id) => String(id))
+        ? transaction.participants
+            .map((id) => {
+              const raw = String(id || "").trim();
+              if (!raw) return "";
+              return legacyParticipantToUserId.get(raw) || raw;
+            })
+            .filter(Boolean)
         : normalizedParticipants.map((p) => p.id);
-      setSelectedParticipants(participantIdsFromTx);
+      const validParticipantIdsFromTx = participantIdsFromTx.filter((id) => normalizedParticipants.some((p) => p.id === id));
+      const resolvedParticipants = validParticipantIdsFromTx.length > 0 ? validParticipantIdsFromTx : normalizedParticipants.map((p) => p.id);
+      setSelectedParticipants(resolvedParticipants);
+
+      const { data: paymentRows } = await supabase
+        .from("payments")
+        .select("from_user,to_user,amount")
+        .eq("group_id", groupId);
+
+      const participantsForCheck = resolvedParticipants.includes(normalizedPayerId)
+        ? resolvedParticipants
+        : [...resolvedParticipants, normalizedPayerId];
+      const txValue = Number(transaction.value) || 0;
+      const equalShare = participantsForCheck.length > 0 ? txValue / participantsForCheck.length : 0;
+      const rawSplits = (transaction.splits && typeof transaction.splits === "object" ? transaction.splits : {}) as Record<string, number>;
+
+      const settled = participantsForCheck
+        .filter((id) => id !== normalizedPayerId)
+        .every((debtorId) => {
+          const debt = Number(rawSplits[debtorId]) > 0 ? Number(rawSplits[debtorId]) : equalShare;
+          const paid = ((paymentRows as Array<{ from_user?: string; to_user?: string; amount?: number }> | null) ?? [])
+            .filter((p) => String(p.from_user || "") === debtorId && String(p.to_user || "") === normalizedPayerId)
+            .reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
+          return Math.max(0, debt - paid) <= 0.009;
+        });
+      setPaidBySettlement(settled);
+      if (String(transaction.status || "").toLowerCase() === "paid" || settled) {
+        setFeedback({ type: "error", text: "Este gasto já foi pago e não pode ser editado." });
+      }
 
       if (transaction.splits && Object.keys(transaction.splits).length > 0) {
         setCalculatedSplits(transaction.splits);
@@ -237,15 +310,21 @@ export default function EditExpensePage() {
   };
 
   const handleUpdate = async () => {
-    if (!canEdit) {
-      alert("Somente quem criou o gasto pode editar.");
+    if (isPaid) {
+      setFeedback({ type: "error", text: "Este gasto já foi pago e não pode ser editado." });
+      return;
+    }
+
+    if (!isCreator) {
+      setFeedback({ type: "error", text: "Somente quem criou o gasto pode editar." });
       return;
     }
 
     if (!description.trim() || !value || Number(value) <= 0 || !payerId) {
-      alert("Preencha valor, descrição e pagador.");
+      setFeedback({ type: "error", text: "Preencha valor, descrição e pagador." });
       return;
     }
+    setFeedback(null);
 
     const selected = selectedParticipants.length > 0 ? selectedParticipants : participants.map((p) => p.id);
     if (!selected.includes(payerId)) {
@@ -257,7 +336,7 @@ export default function EditExpensePage() {
       splitsToSave = calculateEqualSplits();
     }
 
-    const { error } = await supabase
+    const { data: updatedRow, error } = await supabase
       .from("transactions")
       .update({
         value: Number(value),
@@ -268,13 +347,30 @@ export default function EditExpensePage() {
       })
       .eq("id", expenseId)
       .eq("payer_id", currentUserId);
+      
+    if (!error) {
+      const check = await supabase
+        .from("transactions")
+        .select("id")
+        .eq("id", expenseId)
+        .eq("payer_id", currentUserId)
+        .maybeSingle();
+      if (check.error) {
+        console.error("edit-expense.update-check-error", check.error);
+      }
+      if (!check.data && !updatedRow) {
+        setFeedback({ type: "error", text: "Sem permissão para editar este gasto." });
+        return;
+      }
+    }
 
     if (error) {
       console.error("edit-expense.update-error", error);
-      alert("Erro ao atualizar gasto.");
+      setFeedback({ type: "error", text: "Erro ao atualizar gasto." });
       return;
     }
 
+    setFeedback({ type: "success", text: "Gasto atualizado com sucesso." });
     router.replace(`/group/${groupId}`);
     router.refresh();
   };
@@ -294,11 +390,12 @@ export default function EditExpensePage() {
 
     if (error) {
       console.error("edit-expense.delete-error", error);
-      alert("Erro ao excluir gasto.");
+      setFeedback({ type: "error", text: "Erro ao excluir gasto." });
       setDeleting(false);
       return;
     }
 
+    setFeedback({ type: "success", text: "Gasto excluído com sucesso." });
     router.replace(`/group/${groupId}`);
     router.refresh();
   };
@@ -327,13 +424,18 @@ export default function EditExpensePage() {
               className="px-3 py-1 rounded-lg bg-[#5BC5A7] text-white flex items-center gap-2 disabled:opacity-60"
               type="button"
             >
-              <Check className="w-4 h-4" /> Atualizar
+              <Check className="w-4 h-4" /> {isPaid ? "Gasto pago" : canEdit ? "Atualizar" : "Somente visualização"}
             </button>
           </div>
         </div>
       </header>
 
       <main className="flex-1 overflow-y-auto max-w-4xl w-full mx-auto px-4 py-6 pb-[calc(8rem+env(safe-area-inset-bottom))] space-y-6">
+        {feedback && (
+          <div className={`rounded-lg px-3 py-2 text-sm ${feedback.type === "success" ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
+            {feedback.text}
+          </div>
+        )}
         <div className="bg-white p-6 rounded-xl shadow-sm">
           <label className="text-gray-600 font-medium">Valor</label>
           <input
@@ -341,6 +443,7 @@ export default function EditExpensePage() {
             step="0.01"
             value={value}
             onChange={(e) => setValue(e.target.value)}
+            disabled={!canEdit}
             className="text-3xl w-full text-center border-b mt-2"
             placeholder="0,00"
           />
@@ -351,6 +454,7 @@ export default function EditExpensePage() {
           <input
             value={description}
             onChange={(e) => setDescription(e.target.value)}
+            disabled={!canEdit}
             placeholder="Ex: Churrasco, Mercado..."
             className="w-full px-4 py-2 border mt-2 rounded-lg"
           />
@@ -361,7 +465,8 @@ export default function EditExpensePage() {
           {participants.map((participant) => (
             <button
               key={participant.id}
-              onClick={() => setPayerId(participant.id)}
+              onClick={() => canEdit && setPayerId(participant.id)}
+              disabled={!canEdit}
               className={`w-full text-left p-3 border rounded-lg mt-2 ${payerId === participant.id ? "border-[#5BC5A7] bg-green-50" : ""}`}
               type="button"
             >
@@ -381,7 +486,8 @@ export default function EditExpensePage() {
               return (
                 <button
                   key={participant.id}
-                  onClick={() => toggleParticipant(participant.id)}
+                  onClick={() => canEdit && toggleParticipant(participant.id)}
+                  disabled={!canEdit}
                   className={`w-full p-3 rounded-lg border flex justify-between items-center ${isSelected ? "border-[#5BC5A7] bg-green-50" : "border-gray-200"}`}
                   type="button"
                 >
@@ -401,14 +507,16 @@ export default function EditExpensePage() {
 
           <div className="flex gap-3 mt-3">
             <button
-              onClick={() => setSplitType("equal")}
+              onClick={() => canEdit && setSplitType("equal")}
+              disabled={!canEdit}
               className={`flex-1 p-2 rounded-lg ${splitType === "equal" ? "bg-[#5BC5A7] text-white" : "bg-gray-200"}`}
               type="button"
             >
               Igual
             </button>
             <button
-              onClick={() => setSplitType("custom")}
+              onClick={() => canEdit && setSplitType("custom")}
+              disabled={!canEdit}
               className={`flex-1 p-2 rounded-lg ${splitType === "custom" ? "bg-[#5BC5A7] text-white" : "bg-gray-200"}`}
               type="button"
             >
@@ -431,16 +539,17 @@ export default function EditExpensePage() {
                     min={0}
                     value={weights[participant.id] ?? 0}
                     onChange={(e) => setWeights({ ...weights, [participant.id]: Number(e.target.value) })}
+                    disabled={!canEdit}
                     className="w-20 border rounded p-1 text-center"
                   />
                 </div>
               ))}
 
               <div className="flex gap-2 mt-2">
-                <button onClick={calculateCustomSplits} className="bg-[#5BC5A7] text-white px-4 py-2 rounded-lg" type="button">
+                <button onClick={calculateCustomSplits} disabled={!canEdit} className="bg-[#5BC5A7] text-white px-4 py-2 rounded-lg disabled:opacity-60" type="button">
                   Calcular divisão
                 </button>
-                <button onClick={() => setCalculatedSplits({})} className="px-4 py-2 rounded-lg border" type="button">
+                <button onClick={() => setCalculatedSplits({})} disabled={!canEdit} className="px-4 py-2 rounded-lg border disabled:opacity-60" type="button">
                   Limpar
                 </button>
               </div>

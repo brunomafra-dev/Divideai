@@ -8,6 +8,7 @@ import Link from 'next/link'
 import { ensureProfileForUser } from '@/lib/profiles'
 import { AVATAR_PRESETS, getAvatarPresetUrl, getDefaultAvatarKey } from '@/lib/avatar-presets'
 import UserAvatar from '@/components/user-avatar'
+import BottomNav from '@/components/ui/bottom-nav'
 
 interface UserProfile {
   id: string
@@ -180,7 +181,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F7F7F7]">
+    <div className="min-h-screen bg-[#F7F7F7] flex flex-col overflow-x-hidden page-fade">
       <header className="bg-white shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center gap-4">
           <Link href="/">
@@ -192,8 +193,8 @@ export default function ProfilePage() {
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-4 py-6">
-        <div className="bg-white rounded-2xl shadow-sm p-6 mb-6">
+      <main className="flex-1 overflow-y-auto max-w-4xl w-full mx-auto px-4 py-6 pb-[calc(8rem+env(safe-area-inset-bottom))]">
+        <div className="surface-card p-6 mb-6">
           <div className="flex flex-col items-center mb-6">
             <UserAvatar name={fullName || username} avatarKey={avatarKey} className="w-24 h-24 mb-4" textClassName="text-2xl" />
             <h2 className="text-2xl font-bold text-gray-800 mb-1">{fullName || 'Sem nome'}</h2>
@@ -236,13 +237,13 @@ export default function ProfilePage() {
 
             <div className="p-4 bg-gray-50 rounded-lg">
               <label className="block text-sm text-gray-600 mb-3">Avatar</label>
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-4 gap-3">
                 {AVATAR_PRESETS.map((preset) => (
                   <button
                     key={preset.key}
                     type="button"
                     onClick={() => setAvatarKey(preset.key)}
-                    className={`p-1 rounded-lg border-2 ${avatarKey === preset.key ? 'border-[#5BC5A7]' : 'border-transparent'}`}
+                    className={`pressable p-1.5 rounded-xl border-2 transition-all duration-200 ${avatarKey === preset.key ? 'border-[#5BC5A7] bg-[#5BC5A7]/10 scale-[1.03]' : 'border-transparent hover:border-gray-200'}`}
                     title={preset.label}
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -271,7 +272,7 @@ export default function ProfilePage() {
             <button
               onClick={handleSave}
               disabled={saving}
-              className="w-full bg-[#5BC5A7] text-white py-3 rounded-lg font-medium hover:bg-[#4AB396] transition-all disabled:opacity-50"
+              className="w-full tap-target pressable bg-[#5BC5A7] text-white py-3 rounded-lg font-medium hover:bg-[#4AB396] transition-all disabled:opacity-50"
               type="button"
             >
               {saving ? 'Salvando...' : 'Salvar perfil'}
@@ -281,13 +282,14 @@ export default function ProfilePage() {
 
         <button
           onClick={handleLogout}
-          className="w-full bg-red-500 text-white py-3 rounded-lg font-medium hover:bg-red-600 transition-all flex items-center justify-center gap-2 shadow-lg hover:shadow-xl"
+          className="w-full tap-target pressable bg-red-500 text-white py-3 rounded-lg font-medium hover:bg-red-600 transition-all flex items-center justify-center gap-2 shadow-lg hover:shadow-xl"
           type="button"
         >
           <LogOut className="w-5 h-5" />
           Sair da conta
         </button>
       </main>
+      <BottomNav />
     </div>
   )
 }

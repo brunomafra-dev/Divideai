@@ -33,6 +33,7 @@ export default function AddExpense() {
   const [selectedParticipants, setSelectedParticipants] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -133,19 +134,20 @@ export default function AddExpense() {
 
   const handleSave = async () => {
     if (!amount || !description || !payerId || selectedParticipants.length === 0) {
-      alert('Preencha todos os campos')
+      setFeedback({ type: 'error', text: 'Preencha todos os campos.' })
       return
     }
 
     const amountValue = parseFloat(amount)
     if (isNaN(amountValue) || amountValue <= 0) {
-      alert('Valor invalido')
+      setFeedback({ type: 'error', text: 'Valor inválido.' })
       return
     }
 
     if (!group) return
 
     setSaving(true)
+    setFeedback(null)
 
     const participantsForSplit = selectedParticipants.length > 0 ? selectedParticipants : [payerId]
     const splitAmount = Number((amountValue / participantsForSplit.length).toFixed(2))
@@ -197,10 +199,11 @@ export default function AddExpense() {
           value: amountValue,
         },
       })
-      alert('Erro ao salvar gasto')
+      setFeedback({ type: 'error', text: 'Erro ao salvar gasto.' })
       return
     }
 
+    setFeedback({ type: 'success', text: 'Gasto salvo com sucesso.' })
     router.replace(`/group/${groupId}`)
     router.refresh()
   }
@@ -243,6 +246,11 @@ export default function AddExpense() {
       </header>
 
       <main className="flex-1 overflow-y-auto max-w-4xl w-full mx-auto px-4 py-6 pb-[calc(8rem+env(safe-area-inset-bottom))] space-y-6">
+        {feedback && (
+          <div className={`rounded-lg px-3 py-2 text-sm ${feedback.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+            {feedback.text}
+          </div>
+        )}
         <div className="bg-white rounded-xl p-6 shadow-sm text-center">
           <label className="block text-sm font-medium text-gray-600 mb-2">Valor</label>
           <div className="flex items-center justify-center gap-2">

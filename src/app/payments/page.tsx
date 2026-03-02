@@ -2,7 +2,7 @@
 
 import { ArrowLeft, CheckCircle, Clock, TrendingDown, TrendingUp, X } from 'lucide-react'
 import Link from 'next/link'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import BottomNav from '@/components/ui/bottom-nav'
@@ -63,7 +63,8 @@ export default function Payments() {
   const [payments, setPayments] = useState<Payment[]>([])
   const [filter, setFilter] = useState<'all' | 'paid' | 'pending'>('all')
   const [loading, setLoading] = useState(true)
-  const [initialized, setInitialized] = useState(false)
+  const hasLoadedOnceRef = useRef(false)
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [savingId, setSavingId] = useState<string | null>(null)
   const [myId, setMyId] = useState<string | null>(null)
   const [selfPaidTotal, setSelfPaidTotal] = useState(0)
@@ -72,7 +73,7 @@ export default function Payments() {
   const [pixCopyPaste, setPixCopyPaste] = useState('')
 
   const load = useCallback(async (showBlockingLoading: boolean = false) => {
-    if (showBlockingLoading || !initialized) {
+    if (showBlockingLoading || !hasLoadedOnceRef.current) {
       setLoading(true)
     }
     try {
@@ -242,10 +243,10 @@ export default function Payments() {
       console.error('payments.load-unhandled-error', error)
       setPayments([])
     } finally {
-      setInitialized(true)
+      hasLoadedOnceRef.current = true
       setLoading(false)
     }
-  }, [initialized, router])
+  }, [router])
 
   useEffect(() => {
     load(true)
@@ -291,12 +292,12 @@ export default function Payments() {
           hint: error.hint,
           payment,
         })
-        alert('Erro ao marcar como recebido')
+        setFeedback({ type: 'error', text: 'Erro ao marcar como recebido.' })
         return
       }
 
-      await load()
-      router.refresh()
+      setFeedback({ type: 'success', text: 'Pagamento marcado como recebido.' })
+      await load(false)
     } finally {
       setSavingId(null)
     }
@@ -304,7 +305,7 @@ export default function Payments() {
 
   const copyChargeMessage = async (payment: Payment) => {
     await navigator.clipboard.writeText(buildChargeMessage(payment.groupName, payment.amount, pixCopyPaste))
-    alert('Mensagem copiada')
+    setFeedback({ type: 'success', text: 'Mensagem copiada.' })
   }
 
   const shareChargeMessage = async (payment: Payment) => {
@@ -318,7 +319,7 @@ export default function Payments() {
       }
     }
     await navigator.clipboard.writeText(message)
-    alert('Mensagem copiada para compartilhamento')
+    setFeedback({ type: 'success', text: 'Mensagem copiada para compartilhamento.' })
   }
 
   const filteredPayments = useMemo(() => {
@@ -366,33 +367,38 @@ export default function Payments() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F7F7F7] flex flex-col overflow-x-hidden">
+    <div className="min-h-screen bg-[#F7F7F7] flex flex-col overflow-x-hidden page-fade">
       <header className="bg-white shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
           <Link href="/">
-            <button className="text-gray-600 hover:text-gray-800" type="button">
+            <button className="tap-target pressable text-gray-600 hover:text-gray-800" type="button">
               <ArrowLeft className="w-6 h-6" />
             </button>
           </Link>
-          <h1 className="text-lg font-semibold text-gray-800">Pagamentos</h1>
+          <h1 className="section-title">Pagamentos</h1>
           <div className="w-6" />
         </div>
       </header>
 
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-4xl mx-auto px-4 py-6">
+          {feedback && (
+            <div className={`mb-3 rounded-lg px-3 py-2 text-sm ${feedback.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+              {feedback.text}
+            </div>
+          )}
           <div className="grid grid-cols-3 gap-3">
-            <div className="bg-green-50 rounded-xl p-4 text-center">
+            <div className="bg-green-50 rounded-xl p-4 text-center border border-green-100">
               <TrendingUp className="w-5 h-5 text-[#5BC5A7] mx-auto mb-2" />
               <p className="text-xs text-gray-600 mb-1">Recebido</p>
               <p className="text-lg font-bold text-[#5BC5A7]">{showMyBalance ? `R$ ${totalReceived.toFixed(2)}` : 'Oculto'}</p>
             </div>
-            <div className="bg-red-50 rounded-xl p-4 text-center">
+            <div className="bg-red-50 rounded-xl p-4 text-center border border-red-100">
               <TrendingDown className="w-5 h-5 text-[#FF6B6B] mx-auto mb-2" />
               <p className="text-xs text-gray-600 mb-1">Pago</p>
               <p className="text-lg font-bold text-[#FF6B6B]">{showMyBalance ? `R$ ${totalPaid.toFixed(2)}` : 'Oculto'}</p>
             </div>
-            <div className="bg-orange-50 rounded-xl p-4 text-center">
+            <div className="bg-orange-50 rounded-xl p-4 text-center border border-orange-100">
               <Clock className="w-5 h-5 text-orange-500 mx-auto mb-2" />
               <p className="text-xs text-gray-600 mb-1">Pendente</p>
               <p className="text-lg font-bold text-orange-500">{showMyBalance ? `R$ ${totalPending.toFixed(2)}` : 'Oculto'}</p>
@@ -404,9 +410,9 @@ export default function Payments() {
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-4xl mx-auto px-4 py-3">
           <div className="flex gap-2">
-            <button onClick={() => setFilter('all')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${filter === 'all' ? 'bg-[#5BC5A7] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`} type="button">Todos</button>
-            <button onClick={() => setFilter('paid')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${filter === 'paid' ? 'bg-[#5BC5A7] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`} type="button">Pagos</button>
-            <button onClick={() => setFilter('pending')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${filter === 'pending' ? 'bg-[#5BC5A7] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`} type="button">Pendentes</button>
+            <button onClick={() => setFilter('all')} className={`tap-target pressable px-4 py-2 rounded-lg text-sm font-medium transition-colors ${filter === 'all' ? 'bg-[#5BC5A7] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`} type="button">Todos</button>
+            <button onClick={() => setFilter('paid')} className={`tap-target pressable px-4 py-2 rounded-lg text-sm font-medium transition-colors ${filter === 'paid' ? 'bg-[#5BC5A7] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`} type="button">Pagos</button>
+            <button onClick={() => setFilter('pending')} className={`tap-target pressable px-4 py-2 rounded-lg text-sm font-medium transition-colors ${filter === 'pending' ? 'bg-[#5BC5A7] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`} type="button">Pendentes</button>
           </div>
         </div>
       </div>
@@ -423,7 +429,7 @@ export default function Payments() {
         ) : (
           <div className="space-y-3">
             {pendingGrouped.map((group) => (
-              <div key={group.groupId} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+              <div key={group.groupId} className="surface-card p-4 surface-card-hover">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-base font-semibold text-gray-800">{group.groupName}</h3>
                   <span className="text-xs px-2 py-1 rounded-full bg-orange-50 text-orange-500">Pendentes</span>
@@ -432,7 +438,7 @@ export default function Payments() {
                   {group.items.map((payment) => {
                     const canMarkAsReceived = myId === payment.toUserId
                     return (
-                      <div key={payment.id} className="p-3 rounded-lg border border-gray-200 bg-gray-50">
+                      <div key={payment.id} className="p-3 rounded-lg border border-gray-200 bg-gray-50 transition-colors duration-200">
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-2">
                             <UserAvatar name={payment.from} avatarKey={payment.fromAvatarKey} className="w-7 h-7" textClassName="text-[10px]" />
@@ -446,7 +452,7 @@ export default function Payments() {
                           <button
                             onClick={() => handleMarkAsReceived(payment)}
                             disabled={!canMarkAsReceived || savingId === payment.id}
-                            className="py-2 bg-[#5BC5A7] text-white rounded-lg font-medium hover:bg-[#4AB396] disabled:opacity-60 disabled:cursor-not-allowed"
+                            className={`tap-target pressable py-2 bg-[#5BC5A7] text-white rounded-lg font-medium hover:bg-[#4AB396] disabled:opacity-60 disabled:cursor-not-allowed ${savingId === payment.id ? 'animate-pulse' : ''}`}
                             type="button"
                             title={canMarkAsReceived ? 'Marcar como recebido' : 'Somente quem recebeu o pagamento pode confirmar'}
                           >
@@ -457,7 +463,7 @@ export default function Payments() {
                               setChargeTarget(payment)
                               setPixCopyPaste('')
                             }}
-                            className="py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-100"
+                            className="tap-target pressable py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-100"
                             type="button"
                           >
                             Cobrar
@@ -471,7 +477,7 @@ export default function Payments() {
             ))}
 
             {paidList.map((payment) => (
-              <div key={payment.id} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+              <div key={payment.id} className="surface-card p-4 surface-card-hover">
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
@@ -502,7 +508,7 @@ export default function Payments() {
           <div className="bg-white w-full max-w-md rounded-2xl shadow-xl p-4 space-y-4 max-h-[calc(100dvh-9rem-env(safe-area-inset-bottom))] sm:max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between">
               <h3 className="text-base font-semibold text-gray-800">Cobrar pagamento</h3>
-              <button onClick={() => setChargeTarget(null)} type="button" className="text-gray-500 hover:text-gray-700">
+              <button onClick={() => setChargeTarget(null)} type="button" className="tap-target pressable text-gray-500 hover:text-gray-700">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -527,14 +533,14 @@ export default function Payments() {
             <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={() => copyChargeMessage(chargeTarget)}
-                className="py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-100"
+                className="tap-target pressable py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-100"
                 type="button"
               >
                 Copiar mensagem
               </button>
               <button
                 onClick={() => shareChargeMessage(chargeTarget)}
-                className="py-2 bg-gray-800 text-white rounded-lg font-medium"
+                className="tap-target pressable py-2 bg-gray-800 text-white rounded-lg font-medium"
                 type="button"
               >
                 Compartilhar

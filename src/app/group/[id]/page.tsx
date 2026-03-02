@@ -23,6 +23,7 @@ interface Participant {
 interface TransactionRow extends BalanceTransaction {
   description: string
   created_at?: string
+  status?: string
 }
 
 interface PaymentRow extends BalancePayment {}
@@ -54,6 +55,8 @@ interface Group {
     payerName: string
     date: string
     participants: string[]
+    status?: string
+    isPaid?: boolean
   }>
 }
 
@@ -155,11 +158,31 @@ export default function GroupPage() {
 
     const participantsList: Participant[] = tableParticipants
 
-    const { data: txRows, error: txError } = await supabase
-      .from('transactions')
-      .select('id,group_id,value,payer_id,description,created_at')
-      .eq('group_id', groupId)
-      .order('created_at', { ascending: false })
+    let txRows: TransactionRow[] | null = null
+    let txError: any = null
+
+    const txCandidates = [
+      'id,group_id,value,payer_id,description,created_at,participants,splits,status',
+      'id,group_id,value,payer_id,description,created_at,participants,status',
+      'id,group_id,value,payer_id,description,created_at,participants,splits',
+      'id,group_id,value,payer_id,description,created_at,participants',
+      'id,group_id,value,payer_id,description,created_at,status',
+      'id,group_id,value,payer_id,description,created_at',
+    ]
+
+    for (const selectClause of txCandidates) {
+      const attempt = await supabase
+        .from('transactions')
+        .select(selectClause)
+        .eq('group_id', groupId)
+        .order('created_at', { ascending: false })
+      if (!attempt.error) {
+        txRows = (attempt.data as TransactionRow[] | null) ?? []
+        txError = null
+        break
+      }
+      txError = attempt.error
+    }
 
     if (txError) {
       console.error('group.transactions-load-error', txError)
@@ -214,7 +237,11 @@ export default function GroupPage() {
     const safeTx: TransactionRow[] = ((txRows as TransactionRow[] | null) ?? []).map((tx) => ({
       ...tx,
       value: Number(tx.value) || 0,
-      participants: activeParticipantIds,
+      participants:
+        Array.isArray((tx as { participants?: string[] }).participants) &&
+        ((tx as { participants?: string[] }).participants || []).length > 0
+          ? ((tx as { participants?: string[] }).participants || []).map((id) => String(id))
+          : activeParticipantIds,
     }))
 
     const safePayments: PaymentRow[] = ((payRows as PaymentRow[] | null) ?? []).map((p) => ({
@@ -224,8 +251,31 @@ export default function GroupPage() {
 
     const summary = calculateUserBalance(safeTx, currentUserId, safePayments)
 
+    const isTransactionPaid = (tx: TransactionRow) => {
+      if (String((tx as { status?: string }).status || '').toLowerCase() === 'paid') return true
+
+      const payerId = String(tx.payer_id || '')
+      const txParticipants = Array.isArray(tx.participants) ? tx.participants.map((id) => String(id)) : []
+      const participantIds = txParticipants.includes(payerId) ? txParticipants : [...txParticipants, payerId]
+      if (participantIds.length <= 1) return true
+
+      const splits = ((tx as { splits?: Record<string, number> }).splits || {}) as Record<string, number>
+      const equalShare = participantIds.length > 0 ? (Number(tx.value) || 0) / participantIds.length : 0
+
+      return participantIds
+        .filter((id) => id !== payerId)
+        .every((debtorId) => {
+          const debt = Number(splits[debtorId]) > 0 ? Number(splits[debtorId]) : equalShare
+          const paid = safePayments
+            .filter((p) => String(p.from_user || '') === debtorId && String(p.to_user || '') === payerId)
+            .reduce((acc, p) => acc + (Number(p.amount) || 0), 0)
+          return Math.max(0, debt - paid) <= 0.009
+        })
+    }
+
     const transactions = safeTx.map((tx) => {
       const payer = participantsList.find((p) => String(p.user_id || p.id) === tx.payer_id)
+      const paid = isTransactionPaid(tx)
       return {
         id: tx.id,
         description: tx.description,
@@ -234,6 +284,8 @@ export default function GroupPage() {
         payerName: tx.payer_id === currentUserId ? 'Voce' : payer?.name || 'Alguem',
         date: tx.created_at || new Date().toISOString(),
         participants: tx.participants || [],
+        status: String((tx as { status?: string }).status || '').toLowerCase(),
+        isPaid: paid,
       }
     })
 
@@ -415,18 +467,18 @@ export default function GroupPage() {
   const extraParticipants = Math.max(0, group.participantsList.length - 4)
 
   return (
-    <div className="min-h-screen bg-[#F7F7F7] flex flex-col overflow-x-hidden">
+    <div className="min-h-screen bg-[#F7F7F7] flex flex-col overflow-x-hidden page-fade">
       <header className="bg-white shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
           <Link href="/">
-            <button className="text-gray-600 hover:text-gray-800" type="button">
+            <button className="tap-target pressable text-gray-600 hover:text-gray-800" type="button">
               <ArrowLeft className="w-6 h-6" />
             </button>
           </Link>
-          <h1 className="text-lg font-semibold text-gray-800">{group.name}</h1>
+          <h1 className="section-title">{group.name}</h1>
           {isOwner ? (
             <Link href={`/group/${groupId}/settings`}>
-              <button className="text-gray-600 hover:text-gray-800" type="button">
+              <button className="tap-target pressable text-gray-600 hover:text-gray-800" type="button">
                 <Settings className="w-6 h-6" />
               </button>
             </Link>
@@ -472,7 +524,7 @@ export default function GroupPage() {
             <button
               type="button"
               onClick={() => setShowParticipantModal(true)}
-              className="w-8 h-8 rounded-full bg-[#5BC5A7] text-white hover:bg-[#4AB396] flex items-center justify-center"
+              className="tap-target pressable w-8 h-8 rounded-full bg-[#5BC5A7] text-white hover:bg-[#4AB396] flex items-center justify-center"
             >
               <Plus className="w-4 h-4" />
             </button>
@@ -526,11 +578,11 @@ export default function GroupPage() {
       )}
 
       {showParticipantModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center p-4">
-          <div className="bg-white w-full max-w-md rounded-2xl shadow-xl p-4 space-y-4">
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center px-4 pt-4 pb-[calc(6.5rem+env(safe-area-inset-bottom))] sm:p-4">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-xl p-4 space-y-4 max-h-[calc(100dvh-9rem-env(safe-area-inset-bottom))] sm:max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between">
               <h3 className="text-base font-semibold text-gray-800">Adicionar participante</h3>
-              <button onClick={() => setShowParticipantModal(false)} type="button" className="text-gray-500 hover:text-gray-700">
+              <button onClick={() => setShowParticipantModal(false)} type="button" className="tap-target pressable text-gray-500 hover:text-gray-700">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -546,7 +598,7 @@ export default function GroupPage() {
               />
               <button
                 onClick={handleAddManualParticipant}
-                className="w-full py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-100"
+                className="w-full tap-target pressable py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-100"
                 type="button"
               >
                 Adicionar manualmente
@@ -559,7 +611,7 @@ export default function GroupPage() {
                   await handleCreateInvite()
                 }}
                 disabled={inviteLoading}
-                className="w-full py-2 bg-[#5BC5A7] text-white rounded-lg font-medium hover:bg-[#4AB396] disabled:opacity-60 flex items-center justify-center gap-2"
+                className="w-full tap-target pressable py-2 bg-[#5BC5A7] text-white rounded-lg font-medium hover:bg-[#4AB396] disabled:opacity-60 flex items-center justify-center gap-2"
                 type="button"
               >
                 <UserPlus className="w-4 h-4" />
@@ -578,7 +630,7 @@ export default function GroupPage() {
                       <button
                         type="button"
                         onClick={handleShareInvite}
-                        className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100"
+                        className="tap-target pressable px-3 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100"
                       >
                         Compartilhar
                       </button>
@@ -587,7 +639,7 @@ export default function GroupPage() {
                         <button
                           type="button"
                           onClick={handleCopyInviteLink}
-                          className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 flex items-center gap-1"
+                          className="tap-target pressable px-3 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 flex items-center gap-1"
                         >
                           <Copy className="w-4 h-4" />
                           Copiar link
@@ -596,7 +648,7 @@ export default function GroupPage() {
                           href={whatsappShareUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100"
+                          className="tap-target pressable px-3 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100"
                         >
                           WhatsApp
                         </a>
@@ -663,7 +715,7 @@ export default function GroupPage() {
             <h3 className="text-lg font-medium text-gray-800 mb-2">Nenhum gasto ainda</h3>
             <p className="text-gray-600 mb-6">Adicione o primeiro gasto do grupo</p>
             <Link href={`/group/${groupId}/add-expense`}>
-              <button className="bg-[#5BC5A7] text-white px-6 py-3 rounded-lg hover:bg-[#4AB396] transition-colors" type="button">
+              <button className="tap-target pressable bg-[#5BC5A7] text-white px-6 py-3 rounded-lg hover:bg-[#4AB396] transition-colors" type="button">
                 Adicionar gasto
               </button>
             </Link>
@@ -677,7 +729,7 @@ export default function GroupPage() {
                 <Link href={`/group/${groupId}/add-expense`}>
                   <button
                     type="button"
-                    className="px-3 py-1.5 bg-[#5BC5A7] text-white text-sm rounded-lg hover:bg-[#4AB396]"
+                    className="tap-target pressable px-3 py-1.5 bg-[#5BC5A7] text-white text-sm rounded-lg hover:bg-[#4AB396]"
                   >
                     Adicionar gasto
                   </button>
@@ -689,46 +741,68 @@ export default function GroupPage() {
                 const transactionParticipants = group.participantsList.filter((p) => transaction.participants.includes(String(p.user_id || p.id)))
                 const displayParticipants = transactionParticipants.slice(0, 3)
                 const remainingCount = transactionParticipants.length - 3
+                const canEditExpense = String(transaction.payerId) === String(currentUserId) && !transaction.isPaid
+
+                const card = (
+                  <div className={`surface-card p-4 surface-card-hover ${canEditExpense ? 'cursor-pointer' : ''}`}>
+                    <div className="flex justify-between items-start mb-3 gap-2">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-base font-medium text-gray-800 mb-1 truncate">{transaction.description}</h3>
+                        <p className="text-sm text-gray-600">{transaction.payerName} pagou</p>
+                        <div className="flex items-center gap-1 mt-2">
+                          {displayParticipants.map((participant, index) => (
+                            <div
+                              key={String(participant.user_id || participant.id)}
+                              className="w-6 h-6 rounded-full overflow-hidden"
+                              style={{ marginLeft: index > 0 ? '-8px' : '0' }}
+                            >
+                              <UserAvatar
+                                name={participant.name}
+                                avatarKey={participant.avatar_key}
+                                className="w-full h-full"
+                                textClassName="text-[10px]"
+                              />
+                            </div>
+                          ))}
+                          {remainingCount > 0 && (
+                            <div
+                              className="w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center text-gray-700 text-xs font-medium"
+                              style={{ marginLeft: '-8px' }}
+                            >
+                              +{remainingCount}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-lg font-semibold text-gray-800">R$ {transaction.amount.toFixed(2)}</p>
+                          {transaction.isPaid && (
+                            <span className="inline-block mt-1 text-xs px-2 py-0.5 rounded-full bg-green-50 text-[#5BC5A7] border border-green-200">
+                              Pago
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    <div className="flex items-center justify-between text-xs text-gray-500 pt-2 border-t border-gray-100">
+                      <span>{new Date(transaction.date).toLocaleDateString('pt-BR')}</span>
+                      <span>{transaction.participants.length} {transaction.participants.length === 1 ? 'pessoa' : 'pessoas'}</span>
+                    </div>
+                    {!canEditExpense && !transaction.isPaid && (
+                      <p className="text-xs text-gray-500 mt-2">Somente visualizacao (apenas quem criou o gasto pode editar)</p>
+                    )}
+                    {transaction.isPaid && (
+                      <p className="text-xs text-[#5BC5A7] mt-2">Gasto quitado (nao editavel)</p>
+                    )}
+                  </div>
+                )
+
+                if (!canEditExpense) {
+                  return <div key={transaction.id}>{card}</div>
+                }
 
                 return (
                   <Link key={transaction.id} href={`/group/${groupId}/edit-expense/${transaction.id}`}>
-                    <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 cursor-pointer hover:shadow-md transition-all">
-                      <div className="flex justify-between items-start mb-3 gap-2">
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-base font-medium text-gray-800 mb-1 truncate">{transaction.description}</h3>
-                          <p className="text-sm text-gray-600">{transaction.payerName} pagou</p>
-                          <div className="flex items-center gap-1 mt-2">
-                            {displayParticipants.map((participant, index) => (
-                              <div
-                                key={String(participant.user_id || participant.id)}
-                                className="w-6 h-6 rounded-full overflow-hidden"
-                                style={{ marginLeft: index > 0 ? '-8px' : '0' }}
-                              >
-                                <UserAvatar
-                                  name={participant.name}
-                                  avatarKey={participant.avatar_key}
-                                  className="w-full h-full"
-                                  textClassName="text-[10px]"
-                                />
-                              </div>
-                            ))}
-                            {remainingCount > 0 && (
-                              <div
-                                className="w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center text-gray-700 text-xs font-medium"
-                                style={{ marginLeft: '-8px' }}
-                              >
-                                +{remainingCount}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        <p className="text-lg font-semibold text-gray-800 shrink-0">R$ {transaction.amount.toFixed(2)}</p>
-                      </div>
-                      <div className="flex items-center justify-between text-xs text-gray-500 pt-2 border-t border-gray-100">
-                        <span>{new Date(transaction.date).toLocaleDateString('pt-BR')}</span>
-                        <span>{transaction.participants.length} {transaction.participants.length === 1 ? 'pessoa' : 'pessoas'}</span>
-                      </div>
-                    </div>
+                    {card}
                   </Link>
                 )
               })}

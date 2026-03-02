@@ -2,7 +2,7 @@
 
 import { Plus, TrendingUp, TrendingDown } from 'lucide-react'
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import BottomNav from '@/components/ui/bottom-nav'
@@ -42,7 +42,7 @@ export default function Home() {
   const [groups, setGroups] = useState<GroupUI[]>([])
   const [totalBalance, setTotalBalance] = useState(0)
   const [loading, setLoading] = useState(true)
-  const [initialized, setInitialized] = useState(false)
+  const hasLoadedOnceRef = useRef(false)
   const [showMyBalance, setShowMyBalance] = useState(true)
   const [myAvatarKey, setMyAvatarKey] = useState('')
   const [myDisplayName, setMyDisplayName] = useState('Perfil')
@@ -81,7 +81,7 @@ export default function Home() {
 
   useEffect(() => {
     const run = async (showBlockingLoading: boolean = false) => {
-      if (showBlockingLoading || !initialized) {
+      if (showBlockingLoading || !hasLoadedOnceRef.current) {
         setLoading(true)
       }
       try {
@@ -262,7 +262,7 @@ export default function Home() {
         setGroups([])
         setTotalBalance(0)
       } finally {
-        setInitialized(true)
+        hasLoadedOnceRef.current = true
         setLoading(false)
       }
     }
@@ -291,7 +291,7 @@ export default function Home() {
 
     const onVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        run()
+        run(false)
       }
     }
 
@@ -303,7 +303,7 @@ export default function Home() {
       window.removeEventListener('focus', onFocus)
       document.removeEventListener('visibilitychange', onVisibilityChange)
     }
-  }, [initialized, router])
+  }, [router])
 
   if (loading) {
     return (
@@ -314,7 +314,7 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F7F7F7] flex flex-col overflow-x-hidden">
+    <div className="min-h-screen bg-[#F7F7F7] flex flex-col overflow-x-hidden page-fade">
       <header className="bg-white shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
           <h1 className="text-2xl font-bold text-[#5BC5A7]">Divide Ai</h1>
@@ -371,7 +371,7 @@ export default function Home() {
             <h3 className="text-lg font-medium text-gray-800 mb-2">Nenhum grupo ainda</h3>
             <p className="text-gray-600 mb-6">Crie seu primeiro grupo para comecar a dividir gastos</p>
             <Link href="/create-group">
-              <button className="bg-[#5BC5A7] text-white px-6 py-3 rounded-lg hover:bg-[#4AB396] transition-colors" type="button">
+              <button className="tap-target pressable bg-[#5BC5A7] text-white px-6 py-3 rounded-lg hover:bg-[#4AB396] transition-colors" type="button">
                 Criar primeiro grupo
               </button>
             </Link>
@@ -388,7 +388,7 @@ export default function Home() {
             <div className="space-y-3">
               {groups.map((group) => (
                 <Link key={group.id} href={`/group/${group.id}`}>
-                  <div className="bg-white rounded-xl p-4 shadow-sm hover:shadow-md transition-all cursor-pointer border border-gray-100">
+                  <div className="surface-card p-4 surface-card-hover cursor-pointer">
                     <div className="flex justify-between items-start mb-3">
                       <div className="flex-1 min-w-0">
                         <h3 className="text-lg font-medium text-gray-800 mb-1 truncate">{group.name}</h3>
@@ -428,7 +428,7 @@ export default function Home() {
       </main>
 
       <Link href="/create-group">
-        <button className="fixed right-6 w-16 h-16 bg-[#5BC5A7] rounded-full flex items-center justify-center shadow-lg hover:bg-[#4AB396] transition-all hover:scale-110 z-40 bottom-[calc(5.5rem+env(safe-area-inset-bottom))]" type="button">
+        <button className="fixed right-6 w-16 h-16 bg-[#5BC5A7] rounded-full flex items-center justify-center shadow-lg hover:bg-[#4AB396] pressable transition-all hover:scale-110 z-40 bottom-[calc(5.5rem+env(safe-area-inset-bottom))]" type="button">
           <Plus className="w-8 h-8 text-white" />
         </button>
       </Link>

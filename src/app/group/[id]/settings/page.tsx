@@ -29,6 +29,7 @@ export default function GroupSettings() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   const [isOwner, setIsOwner] = useState(false)
 
@@ -146,18 +147,19 @@ export default function GroupSettings() {
 
   const handleSave = async () => {
     if (!isOwner) {
-      alert('Somente o dono pode editar o grupo')
+      setFeedback({ type: 'error', text: 'Somente o dono pode editar o grupo.' })
       return
     }
 
     const trimmedName = groupName.trim()
 
     if (!trimmedName) {
-      alert('Adicione um nome para o grupo')
+      setFeedback({ type: 'error', text: 'Adicione um nome para o grupo.' })
       return
     }
 
     setSaving(true)
+    setFeedback(null)
 
     const { data, error } = await supabase
       .from('groups')
@@ -177,7 +179,7 @@ export default function GroupSettings() {
         details: error.details,
         hint: error.hint,
       })
-      alert('Erro ao salvar alteracoes')
+      setFeedback({ type: 'error', text: 'Erro ao salvar alterações.' })
       return
     }
 
@@ -186,17 +188,18 @@ export default function GroupSettings() {
         group_id: groupId,
         reason: 'update blocked by RLS or row not found',
       })
-      alert('Sem permissao para salvar alteracoes do grupo (RLS)')
+      setFeedback({ type: 'error', text: 'Sem permissão para salvar alterações do grupo (RLS).' })
       return
     }
 
+    setFeedback({ type: 'success', text: 'Grupo atualizado com sucesso.' })
     router.replace(`/group/${groupId}`)
     router.refresh()
   }
 
   const handleDeleteGroup = async () => {
     if (!isOwner) {
-      alert('Somente o dono pode excluir o grupo')
+      setFeedback({ type: 'error', text: 'Somente o dono pode excluir o grupo.' })
       return
     }
 
@@ -214,7 +217,7 @@ export default function GroupSettings() {
         details: paymentsDeleteError.details,
         hint: paymentsDeleteError.hint,
       })
-      alert('Erro ao excluir pagamentos do grupo')
+      setFeedback({ type: 'error', text: 'Erro ao excluir pagamentos do grupo.' })
       return
     }
 
@@ -227,7 +230,7 @@ export default function GroupSettings() {
         details: transactionsDeleteError.details,
         hint: transactionsDeleteError.hint,
       })
-      alert('Erro ao excluir transacoes do grupo')
+      setFeedback({ type: 'error', text: 'Erro ao excluir transações do grupo.' })
       return
     }
 
@@ -246,7 +249,7 @@ export default function GroupSettings() {
         details: error.details,
         hint: error.hint,
       })
-      alert('Erro ao excluir grupo')
+      setFeedback({ type: 'error', text: 'Erro ao excluir grupo.' })
       return
     }
 
@@ -255,7 +258,7 @@ export default function GroupSettings() {
         group_id: groupId,
         reason: 'delete blocked by RLS or row not found',
       })
-      alert('Sem permissao para excluir este grupo (RLS)')
+      setFeedback({ type: 'error', text: 'Sem permissão para excluir este grupo (RLS).' })
       return
     }
 
@@ -292,6 +295,11 @@ export default function GroupSettings() {
       </header>
 
       <main className="flex-1 overflow-y-auto max-w-4xl w-full mx-auto px-4 py-6 pb-[calc(8rem+env(safe-area-inset-bottom))] space-y-6">
+        {feedback && (
+          <div className={`rounded-lg px-3 py-2 text-sm ${feedback.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+            {feedback.text}
+          </div>
+        )}
         <div className="bg-white rounded-xl p-4 shadow-sm">
           <label className="block text-sm font-medium text-gray-700 mb-2">Nome do grupo</label>
           <input
