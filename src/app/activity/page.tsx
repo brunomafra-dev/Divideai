@@ -39,6 +39,7 @@ type ActivityItem = {
   createdAt: string
   actorName: string
   actorAvatarKey?: string
+  actorIsPremium?: boolean
 }
 
 function formatBRL(n: number) {
@@ -182,6 +183,12 @@ export default function Activity() {
     return found?.avatarKey || ''
   }
 
+  const userIsPremiumFromGroup = (groupId: string, userId: string) => {
+    const participants = membersByGroup.get(groupId) || []
+    const found = participants.find((p) => String(p.id) === String(userId))
+    return Boolean(found?.isPremium)
+  }
+
   const activities: ActivityItem[] = useMemo(() => {
     const items: ActivityItem[] = []
 
@@ -201,6 +208,7 @@ export default function Activity() {
         createdAt: tx.created_at,
         actorName: payerName,
         actorAvatarKey: userAvatarFromGroup(tx.group_id, tx.payer_id),
+        actorIsPremium: userIsPremiumFromGroup(tx.group_id, tx.payer_id),
       })
     }
 
@@ -224,6 +232,7 @@ export default function Activity() {
         createdAt: pay.created_at,
         actorName: fromName,
         actorAvatarKey: userAvatarFromGroup(pay.group_id, pay.from_user),
+        actorIsPremium: userIsPremiumFromGroup(pay.group_id, pay.from_user),
       })
     }
 
@@ -269,7 +278,7 @@ export default function Activity() {
                 className="surface-card p-4 surface-card-hover"
               >
                 <div className="flex items-start gap-3">
-                  <UserAvatar name={activity.actorName} avatarKey={activity.actorAvatarKey} className="w-10 h-10 flex-shrink-0" />
+                  <UserAvatar name={activity.actorName} avatarKey={activity.actorAvatarKey} isPremium={activity.actorIsPremium} className="w-10 h-10 flex-shrink-0" />
                   <div className="flex-1">
                     <p className="text-sm font-medium text-gray-800">
                       {activity.description}

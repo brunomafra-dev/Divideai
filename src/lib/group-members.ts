@@ -4,6 +4,7 @@ export type GroupMember = {
   id: string
   name: string
   avatarKey?: string
+  isPremium?: boolean
 }
 
 export async function fetchGroupMembersMap(groupIds: string[], viewerUserId?: string | null) {
@@ -27,20 +28,20 @@ export async function fetchGroupMembersMap(groupIds: string[], viewerUserId?: st
     .filter((row) => row.groupId && row.userId)
 
   const userIds = Array.from(new Set(pairs.map((row) => row.userId)))
-  const profileMap = new Map<string, { username?: string; full_name?: string; privacy_profile_visible?: boolean; avatar_key?: string }>()
+  const profileMap = new Map<string, { username?: string; full_name?: string; privacy_profile_visible?: boolean; avatar_key?: string; is_premium?: boolean }>()
 
   if (userIds.length > 0) {
     let profileRows: Array<Record<string, unknown>> | null = null
 
     const preferred = await supabase
       .from('profiles')
-      .select('id,username,full_name,privacy_profile_visible,avatar_key')
+      .select('id,username,full_name,privacy_profile_visible,avatar_key,is_premium')
       .in('id', userIds)
 
     if (preferred.error) {
       const fallback = await supabase
         .from('profiles')
-        .select('id,username,full_name')
+        .select('id,username,full_name,is_premium')
         .in('id', userIds)
 
       if (fallback.error) {
@@ -60,6 +61,7 @@ export async function fetchGroupMembersMap(groupIds: string[], viewerUserId?: st
         full_name: String((row as { full_name?: string }).full_name || '').trim(),
         privacy_profile_visible: Boolean((row as { privacy_profile_visible?: boolean }).privacy_profile_visible),
         avatar_key: String((row as { avatar_key?: string }).avatar_key || '').trim(),
+        is_premium: Boolean((row as { is_premium?: boolean }).is_premium),
       })
     }
   }
@@ -77,6 +79,7 @@ export async function fetchGroupMembersMap(groupIds: string[], viewerUserId?: st
       id: pair.userId,
       name,
       avatarKey: visible ? (profile?.avatar_key || '') : '',
+      isPremium: visible ? Boolean(profile?.is_premium) : false,
     })
   }
 

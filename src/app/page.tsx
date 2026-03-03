@@ -14,6 +14,7 @@ interface Member {
   id: string
   name: string
   avatarKey?: string
+  isPremium?: boolean
 }
 
 interface GroupRow {
@@ -46,6 +47,7 @@ export default function Home() {
   const [showMyBalance, setShowMyBalance] = useState(true)
   const [myAvatarKey, setMyAvatarKey] = useState('')
   const [myDisplayName, setMyDisplayName] = useState('Perfil')
+  const [myIsPremium, setMyIsPremium] = useState(false)
 
   const renderMemberAvatars = (members?: Member[], maxDisplay: number = 4) => {
     if (!members || members.length === 0) return null
@@ -62,7 +64,7 @@ export default function Home() {
             style={{ zIndex: displayMembers.length - index }}
             title={member.name}
           >
-            <UserAvatar name={member.name} avatarKey={member.avatarKey} className="w-full h-full" textClassName="text-[10px]" />
+            <UserAvatar name={member.name} avatarKey={member.avatarKey} isPremium={member.isPremium} className="w-full h-full" textClassName="text-[10px]" />
           </div>
         ))}
 
@@ -111,36 +113,20 @@ export default function Home() {
           return
         }
 
-      let txRows: any[] | null = null
-      let tErr: any = null
-
-      const txWithAll = await supabase
+      const txMinimal = await supabase
         .from('transactions')
-        .select('id,group_id,value,payer_id,splits,status')
+        .select('id,group_id,value,payer_id')
 
-      if (txWithAll.error) {
-        const txWithSplits = await supabase
-          .from('transactions')
-          .select('id,group_id,value,payer_id,splits')
-
-        if (txWithSplits.error) {
-          const txMinimal = await supabase
-            .from('transactions')
-            .select('id,group_id,value,payer_id')
-
-          txRows = txMinimal.data
-          tErr = txMinimal.error
-        } else {
-          txRows = txWithSplits.data
-          tErr = null
-        }
-      } else {
-        txRows = txWithAll.data
-        tErr = null
-      }
+      const txRows = txMinimal.data
+      const tErr = txMinimal.error
 
       if (tErr) {
-        console.error('Erro ao carregar transactions:', tErr.message)
+        console.error('Erro ao carregar transactions:', {
+          code: tErr.code,
+          message: tErr.message,
+          details: tErr.details,
+          hint: tErr.hint,
+        })
       }
 
       const { data: payRows, error: pErr } = await supabase
@@ -154,7 +140,7 @@ export default function Home() {
         let myProfile: any = null
         const myProfilePreferred = await supabase
           .from('profiles')
-          .select('privacy_show_balance,username,full_name,avatar_key')
+          .select('privacy_show_balance,username,full_name,avatar_key,is_premium')
           .eq('id', myId)
           .maybeSingle()
 
@@ -171,6 +157,7 @@ export default function Home() {
         setShowMyBalance(Boolean(myProfile?.privacy_show_balance ?? true))
         setMyAvatarKey(String(myProfile?.avatar_key || ''))
         setMyDisplayName(String(myProfile?.username || myProfile?.full_name || 'Perfil'))
+        setMyIsPremium(Boolean(myProfile?.is_premium))
 
         const safeGroups: GroupRow[] = (groupRows as any) || []
         const membersByGroup = await fetchGroupMembersMap(safeGroups.map((group) => group.id), myId)
@@ -320,7 +307,7 @@ export default function Home() {
           <h1 className="text-2xl font-bold text-[#5BC5A7]">Divide Ai</h1>
           <Link href="/profile">
             <div className="cursor-pointer hover:opacity-90 transition-opacity">
-              <UserAvatar name={myDisplayName} avatarKey={myAvatarKey} className="w-10 h-10" textClassName="text-xs" />
+              <UserAvatar name={myDisplayName} avatarKey={myAvatarKey} isPremium={myIsPremium} className="w-10 h-10" textClassName="text-xs" />
             </div>
           </Link>
         </div>

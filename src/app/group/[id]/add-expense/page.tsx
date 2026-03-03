@@ -12,6 +12,7 @@ interface Participant {
   id: string
   name: string
   avatarKey?: string
+  isPremium?: boolean
 }
 
 interface Group {
@@ -75,11 +76,11 @@ export default function AddExpense() {
         .map((row) => String(row.user_id || '').trim())
         .filter(Boolean)
 
-      let profileMap = new Map<string, { username?: string; full_name?: string; avatar_key?: string }>()
+      let profileMap = new Map<string, { username?: string; full_name?: string; avatar_key?: string; is_premium?: boolean }>()
       if (participantIds.length > 0) {
         const { data: profileRows, error: profilesError } = await supabase
           .from('profiles')
-          .select('id,username,full_name,avatar_key')
+          .select('id,username,full_name,avatar_key,is_premium')
           .in('id', participantIds)
 
         if (profilesError) {
@@ -92,6 +93,7 @@ export default function AddExpense() {
               username: String((row as { username?: string }).username || '').trim(),
               full_name: String((row as { full_name?: string }).full_name || '').trim(),
               avatar_key: String((row as { avatar_key?: string }).avatar_key || '').trim(),
+              is_premium: Boolean((row as { is_premium?: boolean }).is_premium),
             })
           }
         }
@@ -103,6 +105,7 @@ export default function AddExpense() {
           id,
           name: profile?.username || profile?.full_name || 'Usuario',
           avatarKey: profile?.avatar_key || '',
+          isPremium: Boolean(profile?.is_premium),
         }
       })
 
@@ -284,12 +287,14 @@ export default function AddExpense() {
               <button
                 key={participant.id}
                 onClick={() => setPayerId(participant.id)}
-                className={`w-full flex items-center gap-3 p-3 rounded-lg border-2 transition-all ${
-                  payerId === participant.id ? 'border-[#5BC5A7] bg-green-50' : 'border-gray-200 hover:border-gray-300'
+                className={`w-full flex items-center gap-3 p-3 rounded-lg border-2 transition-all focus:outline-none ${
+                  payerId === participant.id
+                    ? 'border-[#5BC5A7] bg-green-50 dark:bg-emerald-900/20 dark:border-emerald-400/70'
+                    : 'border-gray-200 hover:border-gray-300 dark:border-gray-700 dark:hover:border-gray-500'
                 }`}
                 type="button"
               >
-                <UserAvatar name={participant.name} avatarKey={participant.avatarKey} className="w-10 h-10" />
+                <UserAvatar name={participant.name} avatarKey={participant.avatarKey} isPremium={participant.isPremium} className="w-10 h-10" />
                 <div className="text-left">
                   <p className="text-sm font-medium text-gray-800">{participant.name}</p>
                 </div>
@@ -336,13 +341,15 @@ export default function AddExpense() {
                 <button
                   key={participant.id}
                   onClick={() => toggleParticipant(participant.id)}
-                  className={`w-full flex items-center justify-between p-3 rounded-lg border-2 transition-all ${
-                    isSelected ? 'border-[#5BC5A7] bg-green-50' : 'border-gray-200 hover:border-gray-300'
+                  className={`w-full flex items-center justify-between p-3 rounded-lg border-2 transition-all focus:outline-none ${
+                    isSelected
+                      ? 'border-[#5BC5A7] bg-green-50 dark:bg-emerald-900/20 dark:border-emerald-400/70'
+                      : 'border-gray-200 hover:border-gray-300 dark:border-gray-700 dark:hover:border-gray-500'
                   }`}
                   type="button"
                 >
                   <div className="flex items-center gap-3">
-                    <UserAvatar name={participant.name} avatarKey={participant.avatarKey} className="w-10 h-10" />
+                    <UserAvatar name={participant.name} avatarKey={participant.avatarKey} isPremium={participant.isPremium} className="w-10 h-10" />
                     <p className="text-sm font-medium text-gray-800">{participant.name}</p>
                   </div>
                   {isSelected && <p className="text-sm font-medium text-[#5BC5A7]">R$ {splitAmountPreview}</p>}

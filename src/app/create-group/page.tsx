@@ -3,12 +3,13 @@
 import { ArrowLeft, Copy, UserPlus } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { ensureProfileForUser } from '@/lib/profiles'
 import { generateSecureInviteToken } from '@/lib/invites'
 import { buildInviteLink } from '@/lib/site-url'
 import BottomNav from '@/components/ui/bottom-nav'
+import { fetchGroupQuota, type GroupQuota } from '@/lib/group-quota'
 
 type Category = 'apartment' | 'house' | 'trip' | 'other'
 
@@ -21,10 +22,10 @@ interface Participant {
 }
 
 const categories: Array<{ id: Category; label: string; icon: string }> = [
-  { id: 'apartment', label: 'Apartamento', icon: '🏢' },
-  { id: 'house', label: 'Casa', icon: '🏠' },
-  { id: 'trip', label: 'Viagem', icon: '✈️' },
-  { id: 'other', label: 'Outro', icon: '📋' },
+  { id: 'apartment', label: 'Apartamento', icon: '\u{1F3E2}' },
+  { id: 'house', label: 'Casa', icon: '\u{1F3E0}' },
+  { id: 'trip', label: 'Viagem', icon: '\u{2708}\u{FE0F}' },
+  { id: 'other', label: 'Outro', icon: '\u{1F4CB}' },
 ]
 
 export default function CreateGroup() {
@@ -37,6 +38,7 @@ export default function CreateGroup() {
   const [createdGroupId, setCreatedGroupId] = useState<string | null>(null)
   const [inviteLink, setInviteLink] = useState('')
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [quota, setQuota] = useState<GroupQuota | null>(null)
 
   const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string) => {
     return await Promise.race([
@@ -49,6 +51,18 @@ export default function CreateGroup() {
       }),
     ])
   }
+
+  useEffect(() => {
+    const loadQuota = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) return
+      const currentQuota = await fetchGroupQuota(user.id)
+      setQuota(currentQuota)
+    }
+    loadQuota()
+  }, [])
 
   const handleCreateGroup = async () => {
     const trimmedGroupName = groupName.trim()
@@ -67,7 +81,17 @@ export default function CreateGroup() {
       } = await supabase.auth.getUser()
 
       if (userError || !user) {
-        setFeedback({ type: 'error', text: 'Usuário não autenticado.' })
+        setFeedback({ type: 'error', text: 'Usuario nao autenticado.' })
+        return
+      }
+
+      const currentQuota = await fetchGroupQuota(user.id)
+      setQuota(currentQuota)
+      if (!currentQuota.canCreateGroup) {
+        setFeedback({
+          type: 'error',
+          text: `Plano Free permite ate ${currentQuota.freeLimit} grupos. Faca upgrade para Premium para criar grupos ilimitados.`,
+        })
         return
       }
 
@@ -97,7 +121,15 @@ export default function CreateGroup() {
         .single()
 
       if (error) {
-        setFeedback({ type: 'error', text: error.message || 'Erro ao criar grupo.' })
+        const errorMessage = String(error.message || '').toLowerCase()
+        if (errorMessage.includes('free_group_limit_reached') || errorMessage.includes('plano free')) {
+          setFeedback({
+            type: 'error',
+            text: 'Limite do plano Free atingido (3 grupos). Faca upgrade para Premium para criar grupos ilimitados.',
+          })
+        } else {
+          setFeedback({ type: 'error', text: error.message || 'Erro ao criar grupo.' })
+        }
         return
       }
 
@@ -164,7 +196,7 @@ export default function CreateGroup() {
           <button
             onClick={handleCreateGroup}
             className="tap-target pressable text-[#5BC5A7] font-medium hover:text-[#4AB396]"
-            disabled={loading}
+            disabled={loading || Boolean(quota && !quota.canCreateGroup)}
             type="button"
           >
             Criar
@@ -178,7 +210,14 @@ export default function CreateGroup() {
             {feedback.text}
           </div>
         )}
-          <div className="surface-card p-4">
+
+        {quota && !quota.isPremium && (
+          <div className="rounded-lg px-3 py-2 text-sm bg-amber-50 text-amber-700 border border-amber-200">
+            Plano Free: {quota.ownedGroups}/{quota.freeLimit} grupos criados.
+          </div>
+        )}
+
+        <div className="surface-card p-4">
           <label className="block text-sm font-medium text-gray-700 mb-2">Nome do grupo</label>
           <input
             type="text"
@@ -189,26 +228,28 @@ export default function CreateGroup() {
           />
         </div>
 
-          <div className="surface-card p-4">
+        <div className="surface-card p-4">
           <label className="block text-sm font-medium text-gray-700 mb-3">Categoria</label>
           <div className="grid grid-cols-4 gap-3">
             {categories.map((cat) => (
               <button
                 key={cat.id}
                 onClick={() => setCategory(cat.id)}
-                className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all ${
-                  category === cat.id ? 'border-[#5BC5A7] bg-green-50' : 'border-gray-200 hover:border-gray-300'
+                className={`tap-target pressable flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all focus:outline-none ${
+                  category === cat.id
+                    ? 'border-[#5BC5A7] bg-green-50 dark:bg-emerald-900/20 dark:border-emerald-400/70'
+                    : 'border-gray-200 hover:border-gray-300 dark:border-gray-700 dark:hover:border-gray-500'
                 }`}
                 type="button"
               >
                 <span className="text-2xl">{cat.icon}</span>
-                <span className="text-xs font-medium text-gray-700">{cat.label}</span>
+                <span className="text-xs font-medium text-gray-700 dark:text-gray-200">{cat.label}</span>
               </button>
             ))}
           </div>
         </div>
 
-          <div className="surface-card p-4">
+        <div className="surface-card p-4">
           <label className="flex items-center gap-3">
             <input
               type="checkbox"
@@ -255,8 +296,8 @@ export default function CreateGroup() {
 
         <button
           onClick={handleCreateGroup}
-          disabled={loading || Boolean(inviteLink)}
-          className="w-full tap-target pressable py-4 bg-[#5BC5A7] text-white rounded-xl font-medium"
+          disabled={loading || Boolean(inviteLink) || Boolean(quota && !quota.canCreateGroup)}
+          className="w-full tap-target pressable py-4 bg-[#5BC5A7] text-white rounded-xl font-medium disabled:opacity-60"
           type="button"
         >
           {loading ? 'Criando...' : 'Criar grupo'}

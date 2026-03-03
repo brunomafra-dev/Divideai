@@ -20,11 +20,11 @@ export default function TermsPage() {
 
       <main className="max-w-4xl mx-auto px-4 py-6">
         <article className="surface-card p-5 space-y-4 text-sm text-gray-700 leading-6">
-          <p>O Divide Ai foi criado para ajudar voce e seu grupo a organizar despesas de forma simples e transparente.</p>
-          <p>Ao usar o app, voce concorda em registrar informacoes verdadeiras e respeitar os demais participantes.</p>
-          <p>Os pagamentos e confirmacoes sao controlados pelo proprio grupo. Por isso, sempre confirme com as pessoas envolvidas antes de marcar algo como quitado.</p>
-          <p>Nos comprometemos a manter o aplicativo funcionando com seguranca e estabilidade, mas podemos fazer melhorias e ajustes ao longo do tempo.</p>
-          <p>Se houver uso indevido, comportamento abusivo ou tentativa de fraude, o acesso pode ser limitado para proteger os demais usuarios.</p>
+          <p>O Divide Aí foi criado para ajudar você e seu grupo a organizar despesas de forma simples e transparente.</p>
+          <p>Ao usar o app, você concorda em registrar informações verdadeiras e respeitar os demais participantes.</p>
+          <p>Os pagamentos e as confirmações são controlados pelo próprio grupo. Por isso, sempre confirme com as pessoas envolvidas antes de marcar algo como quitado.</p>
+          <p>Nós nos comprometemos a manter o aplicativo funcionando com segurança e estabilidade, mas podemos fazer melhorias e ajustes ao longo do tempo.</p>
+          <p>Se houver uso indevido, comportamento abusivo ou tentativa de fraude, o acesso poderá ser limitado para proteger os demais usuários.</p>
         </article>
       </main>
 

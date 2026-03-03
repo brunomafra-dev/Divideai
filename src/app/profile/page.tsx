@@ -196,7 +196,7 @@ export default function ProfilePage() {
       <main className="flex-1 overflow-y-auto max-w-4xl w-full mx-auto px-4 py-6 pb-[calc(8rem+env(safe-area-inset-bottom))]">
         <div className="surface-card p-6 mb-6">
           <div className="flex flex-col items-center mb-6">
-            <UserAvatar name={fullName || username} avatarKey={avatarKey} className="w-24 h-24 mb-4" textClassName="text-2xl" />
+            <UserAvatar name={fullName || username} avatarKey={avatarKey} isPremium={Boolean(profile?.is_premium)} className="w-24 h-24 mb-4" textClassName="text-2xl" />
             <h2 className="text-2xl font-bold text-gray-800 mb-1">{fullName || 'Sem nome'}</h2>
             <p className="text-[#5BC5A7] text-sm mb-1">@{username || '-'}</p>
             <p className="text-gray-600">{profile?.email}</p>

@@ -49,6 +49,8 @@ interface Payment {
   groupName: string
   fromAvatarKey?: string
   toAvatarKey?: string
+  fromIsPremium?: boolean
+  toIsPremium?: boolean
 }
 
 function buildChargeMessage(groupName: string, amount: number, pixCode?: string): string {
@@ -139,6 +141,12 @@ export default function Payments() {
       return found?.avatarKey || ''
     }
 
+    const isPremiumFromGroup = (groupId: string, userId: string) => {
+      const list = membersByGroup.get(groupId) || []
+      const found = list.find((p) => String(p.id) === String(userId))
+      return Boolean(found?.isPremium)
+    }
+
     const pendingByKey = new Map<string, { groupId: string; from: string; to: string; amount: number; date: string; description: string; groupName: string }>()
     let computedSelfPaid = 0
 
@@ -212,6 +220,8 @@ export default function Payments() {
         groupName: item.groupName,
         fromAvatarKey: avatarKeyFromGroup(item.groupId, item.from),
         toAvatarKey: avatarKeyFromGroup(item.groupId, item.to),
+        fromIsPremium: isPremiumFromGroup(item.groupId, item.from),
+        toIsPremium: isPremiumFromGroup(item.groupId, item.to),
       })
     }
 
@@ -231,6 +241,8 @@ export default function Payments() {
         groupName: groupMap.get(p.group_id)?.name || 'Grupo',
         fromAvatarKey: avatarKeyFromGroup(p.group_id, p.from_user),
         toAvatarKey: avatarKeyFromGroup(p.group_id, p.to_user),
+        fromIsPremium: isPremiumFromGroup(p.group_id, p.from_user),
+        toIsPremium: isPremiumFromGroup(p.group_id, p.to_user),
       }))
 
       const merged = [...paidFromPayments, ...pendingFromTransactions].sort(
@@ -441,7 +453,7 @@ export default function Payments() {
                       <div key={payment.id} className="p-3 rounded-lg border border-gray-200 bg-gray-50 transition-colors duration-200">
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-2">
-                            <UserAvatar name={payment.from} avatarKey={payment.fromAvatarKey} className="w-7 h-7" textClassName="text-[10px]" />
+                            <UserAvatar name={payment.from} avatarKey={payment.fromAvatarKey} isPremium={payment.fromIsPremium} className="w-7 h-7" textClassName="text-[10px]" />
                             <p className="text-sm font-medium text-gray-800">
                               {payment.from} {'->'} {payment.to}
                             </p>
@@ -481,7 +493,7 @@ export default function Payments() {
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
-                      <UserAvatar name={payment.from} avatarKey={payment.fromAvatarKey} className="w-7 h-7" textClassName="text-[10px]" />
+                      <UserAvatar name={payment.from} avatarKey={payment.fromAvatarKey} isPremium={payment.fromIsPremium} className="w-7 h-7" textClassName="text-[10px]" />
                       <h3 className="text-base font-medium text-gray-800">{payment.description}</h3>
                       <CheckCircle className="w-4 h-4 text-[#5BC5A7]" />
                     </div>

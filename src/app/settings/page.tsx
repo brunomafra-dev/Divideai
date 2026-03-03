@@ -7,12 +7,19 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import BottomNav from '@/components/ui/bottom-nav'
 import packageJson from '../../../package.json'
+import { useTheme } from 'next-themes'
 
 export default function Settings() {
   const router = useRouter()
   const [isPremium, setIsPremium] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [mounted, setMounted] = useState(false)
+  const { resolvedTheme, setTheme } = useTheme()
   const appVersion = useMemo(() => String((packageJson as { version?: string }).version || '0.0.0'), [])
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   useEffect(() => {
     const load = async () => {
@@ -43,9 +50,16 @@ export default function Settings() {
     router.replace('/login')
   }
 
+  const isDark = mounted && resolvedTheme === 'dark'
+
+  const handleThemeToggle = () => {
+    if (!isPremium) return
+    setTheme(isDark ? 'light' : 'dark')
+  }
+
   return (
-    <div className="min-h-screen bg-[#F7F7F7] pb-[calc(6rem+env(safe-area-inset-bottom))] page-fade">
-      <header className="bg-white shadow-sm">
+    <div className="min-h-screen bg-[#F7F7F7] dark:bg-neutral-950 pb-[calc(6rem+env(safe-area-inset-bottom))] page-fade">
+      <header className="bg-white dark:bg-neutral-900 shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
           <Link href="/">
             <button className="tap-target pressable text-gray-600 hover:text-gray-800" type="button">
@@ -69,55 +83,71 @@ export default function Settings() {
           </button>
         </div>
 
-        <div className="surface-card overflow-hidden">
-          <h3 className="text-sm font-medium text-gray-700 px-4 py-3 bg-gray-50">Conta</h3>
-          <div className="divide-y divide-gray-100">
-            <Link href="/profile" className="tap-target px-4 py-3 hover:bg-gray-50 flex items-center justify-between transition-colors">
-              <span className="text-sm text-gray-800">Perfil</span>
-              <ChevronRight className="w-4 h-4 text-gray-500" />
+        <div className="surface-card overflow-hidden dark:bg-neutral-900 dark:border-neutral-800">
+          <h3 className="text-sm font-medium text-gray-700 dark:text-gray-200 px-4 py-3 bg-gray-50 dark:bg-neutral-800">Conta</h3>
+          <div className="divide-y divide-gray-100 dark:divide-neutral-800">
+            <Link href="/profile" className="tap-target px-4 py-3 hover:bg-gray-50 dark:hover:bg-neutral-800 flex items-center justify-between transition-colors">
+              <span className="text-sm text-gray-800 dark:text-gray-100">Perfil</span>
+              <ChevronRight className="w-4 h-4 text-gray-500 dark:text-gray-300" />
             </Link>
-            <Link href="/settings/notifications" className="tap-target px-4 py-3 hover:bg-gray-50 flex items-center justify-between transition-colors">
-              <span className="text-sm text-gray-800">Notificacoes</span>
-              <ChevronRight className="w-4 h-4 text-gray-500" />
+            <button
+              type="button"
+              onClick={handleThemeToggle}
+              disabled={!isPremium}
+              title={!isPremium ? 'Recurso premium' : 'Alternar tema'}
+              aria-label={!isPremium ? 'Recurso premium' : 'Alternar tema'}
+              className={`w-full tap-target px-4 py-3 flex items-center justify-between transition-colors text-left ${isPremium ? 'hover:bg-gray-50 dark:hover:bg-neutral-800' : 'opacity-60 cursor-not-allowed'}`}
+            >
+              <span className="text-sm text-gray-800 dark:text-gray-100 flex items-center gap-2">
+                <Crown className="w-4 h-4" />
+                Dark Mode
+              </span>
+              <span className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isDark && isPremium ? 'bg-[#5BC5A7]' : 'bg-gray-300'}`}>
+                <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${isDark && isPremium ? 'translate-x-5' : 'translate-x-1'}`} />
+              </span>
+            </button>
+            <Link href="/settings/notifications" className="tap-target px-4 py-3 hover:bg-gray-50 dark:hover:bg-neutral-800 flex items-center justify-between transition-colors">
+              <span className="text-sm text-gray-800 dark:text-gray-100">Notificacoes</span>
+              <ChevronRight className="w-4 h-4 text-gray-500 dark:text-gray-300" />
             </Link>
-            <Link href="/settings/privacy" className="tap-target px-4 py-3 hover:bg-gray-50 flex items-center justify-between transition-colors">
-              <span className="text-sm text-gray-800">Privacidade</span>
-              <ChevronRight className="w-4 h-4 text-gray-500" />
+            <Link href="/settings/privacy" className="tap-target px-4 py-3 hover:bg-gray-50 dark:hover:bg-neutral-800 flex items-center justify-between transition-colors">
+              <span className="text-sm text-gray-800 dark:text-gray-100">Privacidade</span>
+              <ChevronRight className="w-4 h-4 text-gray-500 dark:text-gray-300" />
             </Link>
           </div>
         </div>
 
-        <div className="surface-card overflow-hidden">
-          <h3 className="text-sm font-medium text-gray-700 px-4 py-3 bg-gray-50">Sobre</h3>
-          <div className="divide-y divide-gray-100">
-            <Link href="/settings/terms" className="tap-target px-4 py-3 hover:bg-gray-50 flex items-center justify-between transition-colors">
-              <span className="text-sm text-gray-800">Termos de uso</span>
-              <ChevronRight className="w-4 h-4 text-gray-500" />
+        <div className="surface-card overflow-hidden dark:bg-neutral-900 dark:border-neutral-800">
+          <h3 className="text-sm font-medium text-gray-700 dark:text-gray-200 px-4 py-3 bg-gray-50 dark:bg-neutral-800">Sobre</h3>
+          <div className="divide-y divide-gray-100 dark:divide-neutral-800">
+            <Link href="/settings/terms" className="tap-target px-4 py-3 hover:bg-gray-50 dark:hover:bg-neutral-800 flex items-center justify-between transition-colors">
+              <span className="text-sm text-gray-800 dark:text-gray-100">Termos de uso</span>
+              <ChevronRight className="w-4 h-4 text-gray-500 dark:text-gray-300" />
             </Link>
-            <Link href="/settings/privacy-policy" className="tap-target px-4 py-3 hover:bg-gray-50 flex items-center justify-between transition-colors">
-              <span className="text-sm text-gray-800">Politica de privacidade</span>
-              <ChevronRight className="w-4 h-4 text-gray-500" />
+            <Link href="/settings/privacy-policy" className="tap-target px-4 py-3 hover:bg-gray-50 dark:hover:bg-neutral-800 flex items-center justify-between transition-colors">
+              <span className="text-sm text-gray-800 dark:text-gray-100">Politica de privacidade</span>
+              <ChevronRight className="w-4 h-4 text-gray-500 dark:text-gray-300" />
             </Link>
-            <Link href="/settings/support" className="tap-target px-4 py-3 hover:bg-gray-50 flex items-center justify-between transition-colors">
-              <span className="text-sm text-gray-800">Ajuda e suporte</span>
-              <ChevronRight className="w-4 h-4 text-gray-500" />
+            <Link href="/settings/support" className="tap-target px-4 py-3 hover:bg-gray-50 dark:hover:bg-neutral-800 flex items-center justify-between transition-colors">
+              <span className="text-sm text-gray-800 dark:text-gray-100">Ajuda e suporte</span>
+              <ChevronRight className="w-4 h-4 text-gray-500 dark:text-gray-300" />
             </Link>
-            <Link href="/settings/about" className="tap-target px-4 py-3 hover:bg-gray-50 flex items-center justify-between transition-colors">
-              <span className="text-sm text-gray-500">Versao {appVersion}</span>
-              <ChevronRight className="w-4 h-4 text-gray-400" />
+            <Link href="/settings/about" className="tap-target px-4 py-3 hover:bg-gray-50 dark:hover:bg-neutral-800 flex items-center justify-between transition-colors">
+              <span className="text-sm text-gray-500 dark:text-gray-300">Versao {appVersion}</span>
+              <ChevronRight className="w-4 h-4 text-gray-400 dark:text-gray-400" />
             </Link>
           </div>
         </div>
 
         {!loading && !isPremium && (
-          <div className="bg-gray-100 rounded-xl p-4 text-center border-2 border-dashed border-gray-300">
-            <p className="text-xs text-gray-500">Espaco de anuncio ativo no plano Free</p>
+          <div className="bg-gray-100 dark:bg-neutral-900 rounded-xl p-4 text-center border-2 border-dashed border-gray-300 dark:border-neutral-700">
+            <p className="text-xs text-gray-500 dark:text-gray-300">Espaco de anuncio ativo no plano Free</p>
           </div>
         )}
 
         <button
           onClick={handleLogout}
-          className="w-full tap-target pressable bg-white rounded-xl shadow-sm px-4 py-3 text-red-600 font-medium hover:bg-red-50 transition-colors flex items-center justify-center gap-2"
+          className="w-full tap-target pressable bg-white dark:bg-neutral-900 rounded-xl shadow-sm px-4 py-3 text-red-600 font-medium hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors flex items-center justify-center gap-2"
           type="button"
         >
           <LogOut className="w-4 h-4" />

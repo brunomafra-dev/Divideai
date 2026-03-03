@@ -14,17 +14,17 @@ export default function PrivacyPolicyPage() {
               <ArrowLeft className="w-6 h-6" />
             </button>
           </Link>
-          <h1 className="section-title">Politica de privacidade</h1>
+          <h1 className="section-title">Política de privacidade</h1>
         </div>
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-6">
         <article className="surface-card p-5 space-y-4 text-sm text-gray-700 leading-6">
-          <p>Seus dados sao usados somente para fazer o aplicativo funcionar: login, grupos, participantes e registros de gastos.</p>
-          <p>Nosso objetivo e proteger suas informacoes e reduzir ao maximo qualquer exposicao desnecessaria.</p>
-          <p>Voce controla o que deseja mostrar no app pelas configuracoes de privacidade da sua conta.</p>
-          <p>Nos nao vendemos seus dados para terceiros.</p>
-          <p>Se quiser atualizar ou remover informacoes da conta, voce pode solicitar pelos canais de suporte.</p>
+          <p>Seus dados são usados somente para fazer o aplicativo funcionar: login, grupos, participantes e registros de gastos.</p>
+          <p>Nosso objetivo é proteger suas informações e reduzir, ao máximo, qualquer exposição desnecessária.</p>
+          <p>Você controla o que deseja mostrar no app pelas configurações de privacidade da sua conta.</p>
+          <p>Nós não vendemos seus dados para terceiros.</p>
+          <p>Se quiser atualizar ou remover informações da conta, você pode solicitar pelos canais de suporte.</p>
         </article>
       </main>
 

@@ -12,6 +12,7 @@ interface Participant {
   id: string;
   name: string;
   avatarKey?: string;
+  isPremium?: boolean;
 }
 
 interface TransactionRow {
@@ -110,11 +111,11 @@ export default function EditExpensePage() {
         .map((row) => String(row.user_id || "").trim())
         .filter(Boolean);
 
-      let profileMap = new Map<string, { username?: string; full_name?: string; avatar_key?: string }>();
+      let profileMap = new Map<string, { username?: string; full_name?: string; avatar_key?: string; is_premium?: boolean }>();
       if (userIds.length > 0) {
         const { data: profileRows, error: profilesError } = await supabase
           .from("profiles")
-          .select("id,username,full_name,avatar_key")
+          .select("id,username,full_name,avatar_key,is_premium")
           .in("id", userIds);
 
         if (profilesError) {
@@ -127,6 +128,7 @@ export default function EditExpensePage() {
               username: String((row as { username?: string }).username || "").trim(),
               full_name: String((row as { full_name?: string }).full_name || "").trim(),
               avatar_key: String((row as { avatar_key?: string }).avatar_key || "").trim(),
+              is_premium: Boolean((row as { is_premium?: boolean }).is_premium),
             });
           }
         }
@@ -139,6 +141,7 @@ export default function EditExpensePage() {
           id: userId,
           name,
           avatarKey: profile?.avatar_key || "",
+          isPremium: Boolean(profile?.is_premium),
         };
       });
 
@@ -467,11 +470,11 @@ export default function EditExpensePage() {
               key={participant.id}
               onClick={() => canEdit && setPayerId(participant.id)}
               disabled={!canEdit}
-              className={`w-full text-left p-3 border rounded-lg mt-2 ${payerId === participant.id ? "border-[#5BC5A7] bg-green-50" : ""}`}
+              className={`w-full text-left p-3 border rounded-lg mt-2 transition-all focus:outline-none ${payerId === participant.id ? "border-[#5BC5A7] bg-green-50 dark:bg-emerald-900/20 dark:border-emerald-400/70" : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-500"}`}
               type="button"
             >
               <span className="flex items-center gap-3">
-                <UserAvatar name={participant.name} avatarKey={participant.avatarKey} className="w-8 h-8" textClassName="text-xs" />
+                <UserAvatar name={participant.name} avatarKey={participant.avatarKey} isPremium={participant.isPremium} className="w-8 h-8" textClassName="text-xs" />
                 <span>{participant.name}</span>
               </span>
             </button>
@@ -488,11 +491,11 @@ export default function EditExpensePage() {
                   key={participant.id}
                   onClick={() => canEdit && toggleParticipant(participant.id)}
                   disabled={!canEdit}
-                  className={`w-full p-3 rounded-lg border flex justify-between items-center ${isSelected ? "border-[#5BC5A7] bg-green-50" : "border-gray-200"}`}
+                  className={`w-full p-3 rounded-lg border flex justify-between items-center transition-all focus:outline-none ${isSelected ? "border-[#5BC5A7] bg-green-50 dark:bg-emerald-900/20 dark:border-emerald-400/70" : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-500"}`}
                   type="button"
                 >
                   <span className="flex items-center gap-3">
-                    <UserAvatar name={participant.name} avatarKey={participant.avatarKey} className="w-8 h-8" textClassName="text-xs" />
+                    <UserAvatar name={participant.name} avatarKey={participant.avatarKey} isPremium={participant.isPremium} className="w-8 h-8" textClassName="text-xs" />
                     <span>{participant.name}</span>
                   </span>
                   <span className="text-sm text-gray-600">{isSelected ? "participa" : "não"}</span>
@@ -531,7 +534,7 @@ export default function EditExpensePage() {
               {participants.map((participant) => (
                 <div key={participant.id} className="flex justify-between items-center border p-2 rounded-lg">
                   <span className="flex items-center gap-3">
-                    <UserAvatar name={participant.name} avatarKey={participant.avatarKey} className="w-8 h-8" textClassName="text-xs" />
+                    <UserAvatar name={participant.name} avatarKey={participant.avatarKey} isPremium={participant.isPremium} className="w-8 h-8" textClassName="text-xs" />
                     <span>{participant.name}</span>
                   </span>
                   <input

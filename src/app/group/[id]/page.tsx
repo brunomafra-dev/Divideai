@@ -17,6 +17,7 @@ interface Participant {
   display_name?: string
   name: string
   avatar_key?: string
+  is_premium?: boolean
   email?: string
 }
 
@@ -60,6 +61,23 @@ interface Group {
   }>
 }
 
+type ParticipantSummary = {
+  userId: string
+  name: string
+  totalPaid: number
+  totalShare: number
+  pendingToReceive: number
+  pendingToPay: number
+  netPending: number
+}
+
+type GroupReport = {
+  totalSpent: number
+  totalSettled: number
+  totalPending: number
+  participants: ParticipantSummary[]
+}
+
 export default function GroupPage() {
   const params = useParams()
   const router = useRouter()
@@ -76,6 +94,9 @@ export default function GroupPage() {
   const [canNativeShare, setCanNativeShare] = useState(false)
   const [isOwner, setIsOwner] = useState(false)
   const [showMyBalance, setShowMyBalance] = useState(true)
+  const [isPremiumUser, setIsPremiumUser] = useState(false)
+  const [report, setReport] = useState<GroupReport | null>(null)
+  const [reportFeedback, setReportFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const isMountedRef = useRef(true)
 
   const loadGroup = useCallback(async () => {
@@ -86,14 +107,34 @@ export default function GroupPage() {
 
     setLoading(true)
 
-    const { data: groupRow, error: groupError } = await supabase
-      .from('groups')
-      .select('id,name,category,owner_id')
-      .eq('id', groupId)
-      .single()
+    const groupSelectCandidates = [
+      'id,name,category,owner_id',
+      'id,name,owner_id',
+      'id,name,category',
+      'id,name',
+    ]
+
+    let groupRow: GroupRow | null = null
+    let groupError: any = null
+
+    for (const selectClause of groupSelectCandidates) {
+      const attempt = await supabase.from('groups').select(selectClause).eq('id', groupId).single()
+      if (!attempt.error && attempt.data) {
+        groupRow = attempt.data as GroupRow
+        groupError = null
+        break
+      }
+      groupError = attempt.error
+    }
 
     if (groupError || !groupRow) {
-      console.error('group.load-error', groupError)
+      console.error('group.load-error', {
+        code: groupError?.code,
+        message: groupError?.message,
+        details: groupError?.details,
+        hint: groupError?.hint,
+        groupId,
+      })
       setLoading(false)
       router.replace('/')
       return
@@ -114,16 +155,17 @@ export default function GroupPage() {
 
     const { data: myProfile } = await supabase
       .from('profiles')
-      .select('privacy_show_balance')
+      .select('privacy_show_balance,is_premium')
       .eq('id', currentUserId)
       .maybeSingle()
     setShowMyBalance(Boolean(myProfile?.privacy_show_balance ?? true))
+    setIsPremiumUser(Boolean(myProfile?.is_premium))
 
-    let profileMap = new Map<string, { username?: string; full_name?: string; privacy_profile_visible?: boolean; avatar_key?: string }>()
+    let profileMap = new Map<string, { username?: string; full_name?: string; privacy_profile_visible?: boolean; avatar_key?: string; is_premium?: boolean }>()
     if (participantUsers.length > 0) {
       const { data: profileRows, error: profilesError } = await supabase
         .from('profiles')
-        .select('id,username,full_name,privacy_profile_visible,avatar_key')
+        .select('id,username,full_name,privacy_profile_visible,avatar_key,is_premium')
         .in('id', participantUsers)
 
       if (profilesError) {
@@ -137,6 +179,7 @@ export default function GroupPage() {
             full_name: String((row as { full_name?: string }).full_name || '').trim(),
             privacy_profile_visible: Boolean((row as { privacy_profile_visible?: boolean }).privacy_profile_visible),
             avatar_key: String((row as { avatar_key?: string }).avatar_key || '').trim(),
+            is_premium: Boolean((row as { is_premium?: boolean }).is_premium),
           })
         }
       }
@@ -153,39 +196,26 @@ export default function GroupPage() {
         name: display || 'Usuario',
         display_name: display || 'Usuario',
         avatar_key: canShow ? (profile?.avatar_key || '') : '',
+        is_premium: canShow ? Boolean(profile?.is_premium) : false,
       }
     })
 
     const participantsList: Participant[] = tableParticipants
 
-    let txRows: TransactionRow[] | null = null
-    let txError: any = null
-
-    const txCandidates = [
-      'id,group_id,value,payer_id,description,created_at,participants,splits,status',
-      'id,group_id,value,payer_id,description,created_at,participants,status',
-      'id,group_id,value,payer_id,description,created_at,participants,splits',
-      'id,group_id,value,payer_id,description,created_at,participants',
-      'id,group_id,value,payer_id,description,created_at,status',
-      'id,group_id,value,payer_id,description,created_at',
-    ]
-
-    for (const selectClause of txCandidates) {
-      const attempt = await supabase
-        .from('transactions')
-        .select(selectClause)
-        .eq('group_id', groupId)
-        .order('created_at', { ascending: false })
-      if (!attempt.error) {
-        txRows = (attempt.data as TransactionRow[] | null) ?? []
-        txError = null
-        break
-      }
-      txError = attempt.error
-    }
+    const { data: txRows, error: txError } = await supabase
+      .from('transactions')
+      .select('id,group_id,value,payer_id,description,created_at')
+      .eq('group_id', groupId)
+      .order('created_at', { ascending: false })
 
     if (txError) {
-      console.error('group.transactions-load-error', txError)
+      console.error('group.transactions-load-error', {
+        code: txError?.code,
+        message: txError?.message,
+        details: txError?.details,
+        hint: txError?.hint,
+        groupId,
+      })
     }
 
     const { data: payRows, error: payError } = await supabase
@@ -251,6 +281,87 @@ export default function GroupPage() {
 
     const summary = calculateUserBalance(safeTx, currentUserId, safePayments)
 
+    const reportMap = new Map<string, ParticipantSummary>()
+    for (const participant of participantsList) {
+      const userId = String(participant.user_id || participant.id)
+      reportMap.set(userId, {
+        userId,
+        name: participant.name || 'Participante',
+        totalPaid: 0,
+        totalShare: 0,
+        pendingToReceive: 0,
+        pendingToPay: 0,
+        netPending: 0,
+      })
+    }
+
+    const pendingByKey = new Map<string, number>()
+    const paidByKey = new Map<string, number>()
+
+    for (const tx of safeTx) {
+      const payerId = String(tx.payer_id || '')
+      const txParticipants = (Array.isArray(tx.participants) ? tx.participants : activeParticipantIds).map((id) => String(id))
+      const participantIds = txParticipants.includes(payerId) ? txParticipants : [...txParticipants, payerId]
+      if (participantIds.length === 0) continue
+
+      const splits = ((tx as { splits?: Record<string, number> }).splits || {}) as Record<string, number>
+      const equalShare = participantIds.length > 0 ? (Number(tx.value) || 0) / participantIds.length : 0
+
+      const payerSummary = reportMap.get(payerId)
+      if (payerSummary) payerSummary.totalPaid += Number(tx.value) || 0
+
+      for (const participantId of participantIds) {
+        const share = Number(splits[participantId]) > 0 ? Number(splits[participantId]) : equalShare
+        const participantSummary = reportMap.get(participantId)
+        if (participantSummary) participantSummary.totalShare += share
+      }
+
+      if (String((tx as { status?: string }).status || '').toLowerCase() === 'paid') continue
+
+      if (participantIds.length > 1) {
+        for (const debtorId of participantIds.filter((id) => id !== payerId)) {
+          const debt = Number(splits[debtorId]) > 0 ? Number(splits[debtorId]) : equalShare
+          const key = `${debtorId}|${payerId}`
+          pendingByKey.set(key, (pendingByKey.get(key) || 0) + debt)
+        }
+      }
+    }
+
+    for (const payment of safePayments) {
+      const key = `${payment.from_user}|${payment.to_user}`
+      paidByKey.set(key, (paidByKey.get(key) || 0) + (Number(payment.amount) || 0))
+    }
+
+    let totalPending = 0
+    for (const [key, debt] of pendingByKey.entries()) {
+      const paid = paidByKey.get(key) || 0
+      const outstanding = Math.max(0, debt - paid)
+      if (outstanding <= 0.009) continue
+
+      const [debtorId, creditorId] = key.split('|')
+      const debtor = reportMap.get(debtorId)
+      const creditor = reportMap.get(creditorId)
+      if (debtor) debtor.pendingToPay += outstanding
+      if (creditor) creditor.pendingToReceive += outstanding
+      totalPending += outstanding
+    }
+
+    const participantReport = Array.from(reportMap.values()).map((item) => ({
+      ...item,
+      totalPaid: Number(item.totalPaid.toFixed(2)),
+      totalShare: Number(item.totalShare.toFixed(2)),
+      pendingToReceive: Number(item.pendingToReceive.toFixed(2)),
+      pendingToPay: Number(item.pendingToPay.toFixed(2)),
+      netPending: Number((item.pendingToReceive - item.pendingToPay).toFixed(2)),
+    }))
+
+    const groupReport: GroupReport = {
+      totalSpent: Number(summary.totalSpent.toFixed(2)),
+      totalSettled: Number(safePayments.reduce((acc, p) => acc + (Number(p.amount) || 0), 0).toFixed(2)),
+      totalPending: Number(totalPending.toFixed(2)),
+      participants: participantReport.sort((a, b) => b.pendingToReceive - a.pendingToReceive),
+    }
+
     const isTransactionPaid = (tx: TransactionRow) => {
       if (String((tx as { status?: string }).status || '').toLowerCase() === 'paid') return true
 
@@ -294,13 +405,14 @@ export default function GroupPage() {
     setGroup({
       id: groupRow.id,
       name: groupRow.name,
-      category: groupRow.category,
+      category: String((groupRow as { category?: string }).category || 'other'),
       totalSpent: summary.totalSpent,
       balance: summary.balance,
       participants: participantsList.length,
       participantsList,
       transactions,
     })
+    setReport(groupReport)
     setIsOwner(String(myRoleRow?.role || '') === 'owner')
 
     setLoading(false)
@@ -353,6 +465,90 @@ export default function GroupPage() {
   const whatsappShareUrl = inviteLink
     ? `https://wa.me/?text=${encodeURIComponent(`Entre no meu grupo no Divide Ai: ${inviteLink}`)}`
     : ''
+
+  const handleExportCsv = useCallback(() => {
+    if (!group || !report) return
+    const lines = [
+      'participante,total_pago,total_parte,pendente_receber,pendente_pagar,saldo_pendente',
+      ...report.participants.map((row) =>
+        [
+          `"${row.name.replace(/"/g, '""')}"`,
+          row.totalPaid.toFixed(2),
+          row.totalShare.toFixed(2),
+          row.pendingToReceive.toFixed(2),
+          row.pendingToPay.toFixed(2),
+          row.netPending.toFixed(2),
+        ].join(',')
+      ),
+      '',
+      `resumo_total_gasto,${report.totalSpent.toFixed(2)}`,
+      `resumo_total_recebido,${report.totalSettled.toFixed(2)}`,
+      `resumo_total_pendente,${report.totalPending.toFixed(2)}`,
+    ]
+
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `divideai-resumo-${group.name.replace(/\s+/g, '-').toLowerCase()}.csv`
+    document.body.appendChild(anchor)
+    anchor.click()
+    document.body.removeChild(anchor)
+    URL.revokeObjectURL(url)
+    setReportFeedback({ type: 'success', text: 'CSV exportado com sucesso.' })
+  }, [group, report])
+
+  const handleExportPdf = useCallback(() => {
+    if (!group || !report) return
+
+    const reportRows = report.participants
+      .map(
+        (row) => `
+          <tr>
+            <td style="padding:8px;border:1px solid #e5e7eb;">${row.name}</td>
+            <td style="padding:8px;border:1px solid #e5e7eb;">R$ ${row.totalPaid.toFixed(2)}</td>
+            <td style="padding:8px;border:1px solid #e5e7eb;">R$ ${row.totalShare.toFixed(2)}</td>
+            <td style="padding:8px;border:1px solid #e5e7eb;color:#16a34a;">R$ ${row.pendingToReceive.toFixed(2)}</td>
+            <td style="padding:8px;border:1px solid #e5e7eb;color:#dc2626;">R$ ${row.pendingToPay.toFixed(2)}</td>
+            <td style="padding:8px;border:1px solid #e5e7eb;font-weight:600;">R$ ${row.netPending.toFixed(2)}</td>
+          </tr>
+        `
+      )
+      .join('')
+
+    const popup = window.open('', '_blank', 'width=900,height=700')
+    if (!popup) {
+      setReportFeedback({ type: 'error', text: 'Bloqueio de popup ativo. Libere popups para exportar PDF.' })
+      return
+    }
+
+    popup.document.write(`
+      <html>
+        <head><title>Resumo financeiro - ${group.name}</title></head>
+        <body style="font-family:Arial,sans-serif;padding:24px;">
+          <h1 style="margin:0 0 12px 0;">Resumo financeiro - ${group.name}</h1>
+          <p style="margin:0 0 16px 0;">Total gasto: R$ ${report.totalSpent.toFixed(2)} | Total recebido: R$ ${report.totalSettled.toFixed(2)} | Pendente: R$ ${report.totalPending.toFixed(2)}</p>
+          <table style="width:100%;border-collapse:collapse;font-size:13px;">
+            <thead>
+              <tr>
+                <th style="padding:8px;border:1px solid #e5e7eb;text-align:left;">Participante</th>
+                <th style="padding:8px;border:1px solid #e5e7eb;text-align:left;">Total pago</th>
+                <th style="padding:8px;border:1px solid #e5e7eb;text-align:left;">Sua parte</th>
+                <th style="padding:8px;border:1px solid #e5e7eb;text-align:left;">A receber</th>
+                <th style="padding:8px;border:1px solid #e5e7eb;text-align:left;">A pagar</th>
+                <th style="padding:8px;border:1px solid #e5e7eb;text-align:left;">Saldo</th>
+              </tr>
+            </thead>
+            <tbody>${reportRows}</tbody>
+          </table>
+        </body>
+      </html>
+    `)
+    popup.document.close()
+    popup.focus()
+    popup.print()
+    setReportFeedback({ type: 'success', text: 'PDF pronto para salvar via impressao.' })
+  }, [group, report])
 
   const handleAddManualParticipant = useCallback(async () => {
     if (!group || !manualParticipantName.trim()) return
@@ -501,6 +697,7 @@ export default function GroupPage() {
                   <UserAvatar
                     name={String(participant.name || participant.display_name || 'Participante')}
                     avatarKey={participant.avatar_key}
+                    isPremium={participant.is_premium}
                     className="w-full h-full"
                     textClassName="text-xs"
                   />
@@ -706,6 +903,72 @@ export default function GroupPage() {
         </div>
       )}
 
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-4xl mx-auto px-4 py-4">
+          {isPremiumUser && report ? (
+            <div className="surface-card p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="section-title">Resumo financeiro inteligente</h3>
+                  <p className="section-subtitle">Consolidado por participante com saldo pendente do grupo.</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={handleExportCsv} type="button" className="tap-target pressable px-3 py-2 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100">CSV</button>
+                  <button onClick={handleExportPdf} type="button" className="tap-target pressable px-3 py-2 text-sm bg-gray-800 text-white rounded-lg">PDF</button>
+                </div>
+              </div>
+
+              {reportFeedback && (
+                <div className={`rounded-lg px-3 py-2 text-sm ${reportFeedback.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                  {reportFeedback.text}
+                </div>
+              )}
+
+              <div className="grid grid-cols-3 gap-2 text-sm">
+                <div className="rounded-lg bg-gray-50 p-3 border border-gray-200"><p className="text-gray-500">Total gasto</p><p className="font-semibold text-gray-800">R$ {report.totalSpent.toFixed(2)}</p></div>
+                <div className="rounded-lg bg-gray-50 p-3 border border-gray-200"><p className="text-gray-500">Total recebido</p><p className="font-semibold text-[#5BC5A7]">R$ {report.totalSettled.toFixed(2)}</p></div>
+                <div className="rounded-lg bg-gray-50 p-3 border border-gray-200"><p className="text-gray-500">Saldo pendente</p><p className="font-semibold text-orange-600">R$ {report.totalPending.toFixed(2)}</p></div>
+              </div>
+
+              <div className="space-y-2">
+                {report.participants.map((row) => {
+                  const scaleBase = Math.max(...report.participants.map((x) => Math.abs(x.netPending)), 1)
+                  const widthPercent = Math.max(8, Math.min(100, (Math.abs(row.netPending) / scaleBase) * 100))
+                  const isPositive = row.netPending >= 0
+                  return (
+                    <div key={row.userId} className="rounded-lg border border-gray-200 p-3">
+                      <div className="flex items-center justify-between text-sm mb-2">
+                        <span className="font-medium text-gray-800">{row.name}</span>
+                        <span className={isPositive ? 'text-[#5BC5A7] font-semibold' : 'text-[#FF6B6B] font-semibold'}>
+                          {isPositive ? '+' : '-'} R$ {Math.abs(row.netPending).toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="h-2 w-full rounded-full bg-gray-100 overflow-hidden mb-2">
+                        <div
+                          className={`h-2 rounded-full ${isPositive ? 'bg-[#5BC5A7]' : 'bg-[#FF6B6B]'}`}
+                          style={{ width: `${widthPercent}%` }}
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
+                        <span>Pago: R$ {row.totalPaid.toFixed(2)}</span>
+                        <span>Parte: R$ {row.totalShare.toFixed(2)}</span>
+                        <span>A receber: R$ {row.pendingToReceive.toFixed(2)}</span>
+                        <span>A pagar: R$ {row.pendingToPay.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          ) : (
+            <div className="surface-card p-4">
+              <h3 className="section-title">Resumo financeiro inteligente</h3>
+              <p className="section-subtitle mt-1">Disponivel no plano Premium com exportacao CSV/PDF e consolidado por participante.</p>
+            </div>
+          )}
+        </div>
+      </div>
+
       <main className="flex-1 overflow-y-auto max-w-4xl w-full mx-auto px-4 py-6 pb-[calc(8rem+env(safe-area-inset-bottom))]">
         {group.transactions.length === 0 ? (
           <div className="text-center py-12">
@@ -759,6 +1022,7 @@ export default function GroupPage() {
                               <UserAvatar
                                 name={participant.name}
                                 avatarKey={participant.avatar_key}
+                                isPremium={participant.is_premium}
                                 className="w-full h-full"
                                 textClassName="text-[10px]"
                               />

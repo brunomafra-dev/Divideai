@@ -320,13 +320,15 @@ export default function GroupSettings() {
                 key={cat.id}
                 onClick={() => setCategory(cat.id)}
                 disabled={!isOwner}
-                className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all ${
-                  category === cat.id ? 'border-[#5BC5A7] bg-green-50' : 'border-gray-200 hover:border-gray-300'
+                className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all focus:outline-none ${
+                  category === cat.id
+                    ? 'border-[#5BC5A7] bg-green-50 dark:bg-emerald-900/20 dark:border-emerald-400/70'
+                    : 'border-gray-200 hover:border-gray-300 dark:border-gray-700 dark:hover:border-gray-500'
                 }`}
                 type="button"
               >
                 <span className="text-2xl">{cat.icon}</span>
-                <span className="text-xs font-medium text-gray-700">{cat.label}</span>
+                <span className="text-xs font-medium text-gray-700 dark:text-gray-200">{cat.label}</span>
               </button>
             ))}
           </div>

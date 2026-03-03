@@ -108,10 +108,10 @@ export default function CreateGroup() {
                 <button
                   key={cat.id}
                   onClick={() => setSelectedCategory(cat.id)}
-                  className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all ${
+                  className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all focus:outline-none ${
                     selectedCategory === cat.id
-                      ? 'border-[#5BC5A7] bg-[#5BC5A7]/5'
-                      : 'border-gray-200 hover:border-gray-300'
+                      ? 'border-[#5BC5A7] bg-[#5BC5A7]/5 dark:bg-emerald-900/20 dark:border-emerald-400/70'
+                      : 'border-gray-200 hover:border-gray-300 dark:border-gray-700 dark:hover:border-gray-500'
                   }`}
                 >
                   <Icon className={`w-6 h-6 ${selectedCategory === cat.id ? 'text-[#5BC5A7]' : 'text-gray-600'}`} />
