@@ -11,6 +11,7 @@ import UserAvatar from '@/components/user-avatar'
 import { computePendingEdges } from '@/lib/pending-balances'
 import { fromCents, toCents } from '@/lib/money'
 import { checkRateLimit, RATE_LIMITS } from '@/lib/rate-limit'
+import { usePremium } from '@/hooks/use-premium'
 
 interface GroupRow {
   id: string
@@ -75,6 +76,7 @@ interface PersonPendingSummary {
 
 export default function Payments() {
   const router = useRouter()
+  const { isPremium } = usePremium()
 
   const [payments, setPayments] = useState<Payment[]>([])
   const [filter, setFilter] = useState<'all' | 'paid' | 'pending'>('all')
@@ -383,6 +385,27 @@ export default function Payments() {
     setDetailTarget(pending)
   }, [])
 
+  const handleOpenDetailsByPerson = useCallback((personUserId: string) => {
+    if (!myId) return
+
+    const matches = pendingPayments.filter((item) => item.fromUserId === myId && item.toUserId === personUserId)
+    if (matches.length === 0) return
+
+    const totalCents = matches.reduce((acc, item) => acc + toCents(item.amount), 0)
+    const allBreakdown = matches
+      .flatMap((item) => item.breakdown || [])
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+
+    const sample = matches[0]
+    setDetailTarget({
+      ...sample,
+      id: `pending_person_${personUserId}`,
+      amount: fromCents(totalCents),
+      groupName: matches.length > 1 ? 'Multiplos grupos' : sample.groupName,
+      breakdown: allBreakdown,
+    })
+  }, [myId, pendingPayments])
+
   const handleCopyChargeMessage = useCallback(async () => {
     if (!chargeMessage) return
     await navigator.clipboard.writeText(chargeMessage)
@@ -575,7 +598,11 @@ export default function Payments() {
                   ) : (
                     <div className="space-y-2">
                       {payableByPerson.map((person) => (
-                        <div key={person.personUserId} className="p-3 rounded-lg border border-gray-200 bg-gray-50">
+                        <div
+                          key={person.personUserId}
+                          className="p-3 rounded-lg border border-gray-200 bg-gray-50 cursor-pointer"
+                          onClick={() => handleOpenDetailsByPerson(person.personUserId)}
+                        >
                           <div className="flex items-center justify-between gap-2">
                             <div className="flex items-center gap-2 min-w-0">
                               <UserAvatar name={person.name} avatarKey={person.avatarKey} isPremium={person.isPremium} className="w-8 h-8" textClassName="text-xs" />
@@ -583,7 +610,7 @@ export default function Payments() {
                             </div>
                             <p className="text-sm font-semibold text-[#FF6B6B]">{showMyBalance ? `R$ ${person.totalAmount.toFixed(2)}` : 'Oculto'}</p>
                           </div>
-                          <p className="mt-1 text-xs text-gray-500">Valor pendente com este participante.</p>
+                          <p className="mt-1 text-xs text-gray-500">Valor pendente com este participante. Toque para detalhar.</p>
                         </div>
                       ))}
                     </div>
@@ -709,11 +736,13 @@ export default function Payments() {
         )}
       </main>
 
-      <div className="max-w-4xl w-full mx-auto px-4 py-4">
-        <div className="bg-gray-100 rounded-xl p-4 text-center border-2 border-dashed border-gray-300">
-          <p className="text-xs text-gray-500">Espaco reservado para anuncio</p>
+      {!isPremium && (
+        <div className="max-w-4xl w-full mx-auto px-4 py-4">
+          <div className="bg-gray-100 rounded-xl p-4 text-center border-2 border-dashed border-gray-300">
+            <p className="text-xs text-gray-500">Espaco reservado para anuncio</p>
+          </div>
         </div>
-      </div>
+      )}
 
       {detailTarget && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center px-4 pt-4 pb-[calc(6.5rem+env(safe-area-inset-bottom))] sm:p-4">
@@ -746,17 +775,13 @@ export default function Payments() {
               ) : (
                 <div className="space-y-2">
                   {(detailTarget.breakdown || []).map((item) => (
-                    <div key={`${detailTarget.id}-${item.txId}`} className="rounded-lg border border-gray-200 p-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-sm font-medium text-gray-800 truncate">{item.description}</p>
-                        <p className="text-sm font-semibold text-gray-800">
-                          {showMyBalance ? `R$ ${item.amount.toFixed(2)}` : 'Oculto'}
-                        </p>
-                      </div>
-                      <div className="flex items-center justify-between mt-1 text-xs text-gray-500">
-                        <span>{item.groupName}</span>
-                        <span>{new Date(item.date).toLocaleDateString('pt-BR')}</span>
-                      </div>
+                    <div key={`${detailTarget.id}-${item.txId}-${item.date}`} className="rounded-lg border border-gray-200 p-3">
+                      <p className="text-sm font-medium text-gray-800">
+                        {item.description} — {showMyBalance ? `R$ ${item.amount.toFixed(2)}` : 'Oculto'}
+                      </p>
+                      <p className="mt-1 text-xs text-gray-500">
+                        {item.groupName} • {new Date(item.date).toLocaleDateString('pt-BR')}
+                      </p>
                     </div>
                   ))}
                 </div>

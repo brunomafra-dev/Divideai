@@ -11,6 +11,7 @@ import UserAvatar from '@/components/user-avatar'
 import { computePendingEdges } from '@/lib/pending-balances'
 import { fromCents, toCents } from '@/lib/money'
 import { auditDatabaseSecurity, type SecurityAuditReport } from '@/lib/security-audit'
+import { usePremium } from '@/hooks/use-premium'
 
 interface Member {
   id: string
@@ -60,6 +61,7 @@ interface GroupUI {
 
 export default function Home() {
   const router = useRouter()
+  const { isPremium } = usePremium()
   const [groups, setGroups] = useState<GroupUI[]>([])
   const [totalBalance, setTotalBalance] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -376,13 +378,15 @@ export default function Home() {
         </div>
       </div>
 
-      <div className="bg-white border-b border-gray-200">
-        <div className="max-w-4xl mx-auto px-4 py-3">
-          <div className="bg-gray-100 rounded-lg p-3 text-center border-2 border-dashed border-gray-300">
-            <p className="text-xs text-gray-500">Espaco reservado para anuncio</p>
+      {!isPremium && (
+        <div className="bg-white border-b border-gray-200">
+          <div className="max-w-4xl mx-auto px-4 py-3">
+            <div className="bg-gray-100 rounded-lg p-3 text-center border-2 border-dashed border-gray-300">
+              <p className="text-xs text-gray-500">Espaco reservado para anuncio</p>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {securityReport && !securityReport.safe && (
         <div className="bg-amber-50 border-b border-amber-200">

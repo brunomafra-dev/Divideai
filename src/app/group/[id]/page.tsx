@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowLeft, Plus, TrendingUp, TrendingDown, Settings, UserPlus, Copy, X, ChevronRight, ChevronDown } from 'lucide-react'
+import { ArrowLeft, Plus, TrendingUp, TrendingDown, Settings, UserPlus, Copy, X, ChevronRight, ChevronDown, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -17,6 +17,7 @@ import { buildBalancesFromEdges, simplifyDebts, type SimplifiedPayment } from '@
 import DebtBreakdownModal from '@/components/debt/debt-breakdown-modal'
 import { auditGroupFinancialIntegrity, type FinancialAuditReport } from '@/lib/financial-audit'
 import { checkRateLimit, RATE_LIMITS } from '@/lib/rate-limit'
+import { usePremium } from '@/hooks/use-premium'
 
 interface Participant {
   id: string
@@ -128,7 +129,7 @@ export default function GroupPage() {
   const [canNativeShare, setCanNativeShare] = useState(false)
   const [isOwner, setIsOwner] = useState(false)
   const [showMyBalance, setShowMyBalance] = useState(true)
-  const [isPremiumUser, setIsPremiumUser] = useState(false)
+  const { isPremium } = usePremium()
   const [report, setReport] = useState<GroupReport | null>(null)
   const [reportFeedback, setReportFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [isReportExpanded, setIsReportExpanded] = useState(false)
@@ -138,6 +139,7 @@ export default function GroupPage() {
   const [debtBreakdownTarget, setDebtBreakdownTarget] = useState<DebtBreakdownTarget | null>(null)
   const [auditReport, setAuditReport] = useState<FinancialAuditReport>({ valid: true, issues: [] })
   const [showAuditIssues, setShowAuditIssues] = useState(false)
+  const [deletingExpenseId, setDeletingExpenseId] = useState<string | null>(null)
   const isMountedRef = useRef(true)
 
   const loadGroup = useCallback(async () => {
@@ -196,11 +198,10 @@ export default function GroupPage() {
 
     const { data: myProfile } = await supabase
       .from('profiles')
-      .select('privacy_show_balance,is_premium')
+      .select('privacy_show_balance')
       .eq('id', currentUserId)
       .maybeSingle()
     setShowMyBalance(Boolean(myProfile?.privacy_show_balance ?? true))
-    setIsPremiumUser(Boolean(myProfile?.is_premium))
 
     let profileMap = new Map<string, { username?: string; full_name?: string; privacy_profile_visible?: boolean; avatar_key?: string; is_premium?: boolean }>()
     if (participantUsers.length > 0) {
@@ -497,6 +498,45 @@ export default function GroupPage() {
 
     setLoading(false)
   }, [currentUserId, groupId, router])
+
+  const handleDeletePaidExpense = useCallback(async (transactionId: string, payerId: string, isPaid: boolean) => {
+    if (!currentUserId) return
+    if (!isPaid) return
+    if (String(payerId) !== String(currentUserId)) {
+      setReportFeedback({ type: 'error', text: 'Apenas quem criou o gasto pode excluir.' })
+      return
+    }
+
+    const confirmed = window.confirm('Excluir este gasto quitado? Esta ação não pode ser desfeita.')
+    if (!confirmed) return
+
+    setDeletingExpenseId(transactionId)
+    try {
+      const { error } = await supabase
+        .from('transactions')
+        .delete()
+        .eq('id', transactionId)
+        .eq('group_id', groupId)
+        .eq('payer_id', currentUserId)
+
+      if (error) {
+        throw error
+      }
+
+      setReportFeedback({ type: 'success', text: 'Gasto quitado excluído com sucesso.' })
+      await loadGroup()
+    } catch (error: any) {
+      console.error('group.delete-paid-expense-error', {
+        code: error?.code,
+        message: error?.message,
+        details: error?.details,
+        hint: error?.hint,
+      })
+      setReportFeedback({ type: 'error', text: error?.message || 'Erro ao excluir gasto.' })
+    } finally {
+      setDeletingExpenseId(null)
+    }
+  }, [currentUserId, groupId, loadGroup])
 
   const handleCreateInvite = useCallback(async () => {
     if (!currentUserId || !group) return
@@ -1104,7 +1144,7 @@ export default function GroupPage() {
 
             {isReportExpanded && (
               <div className="mt-4 space-y-4">
-                {isPremiumUser && report ? (
+                {isPremium && report ? (
                   <>
                     <div className="flex items-center justify-between">
                       <p className="section-subtitle">Consolidado por participante com saldo pendente do grupo.</p>
@@ -1344,9 +1384,27 @@ export default function GroupPage() {
                         <div className="text-right shrink-0">
                           <p className="text-lg font-semibold text-gray-800">R$ {transaction.amount.toFixed(2)}</p>
                           {transaction.isPaid && (
-                            <span className="inline-block mt-1 text-xs px-2 py-0.5 rounded-full bg-green-50 text-[#5BC5A7] border border-green-200">
-                              Pago
-                            </span>
+                            <div className="mt-1 flex items-center justify-end gap-2">
+                              <span className="inline-block text-xs px-2 py-0.5 rounded-full bg-green-50 text-[#5BC5A7] border border-green-200">
+                                Pago
+                              </span>
+                              {String(transaction.payerId) === String(currentUserId) && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.preventDefault()
+                                    e.stopPropagation()
+                                    void handleDeletePaidExpense(transaction.id, transaction.payerId, Boolean(transaction.isPaid))
+                                  }}
+                                  disabled={deletingExpenseId === transaction.id}
+                                  className="tap-target pressable inline-flex items-center justify-center w-7 h-7 rounded-full border border-red-200 text-red-500 hover:bg-red-50 disabled:opacity-60"
+                                  title="Excluir gasto quitado"
+                                  aria-label="Excluir gasto quitado"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
                           )}
                         </div>
                       </div>
@@ -1378,11 +1436,13 @@ export default function GroupPage() {
         )}
       </main>
 
-      <div className="max-w-4xl w-full mx-auto px-4 py-4">
-        <div className="bg-gray-100 rounded-xl p-4 text-center border-2 border-dashed border-gray-300">
-          <p className="text-xs text-gray-500">Espaco reservado para anuncio</p>
+      {!isPremium && (
+        <div className="max-w-4xl w-full mx-auto px-4 py-4">
+          <div className="bg-gray-100 rounded-xl p-4 text-center border-2 border-dashed border-gray-300">
+            <p className="text-xs text-gray-500">Espaco reservado para anuncio</p>
+          </div>
         </div>
-      </div>
+      )}
 
       <Link href={`/group/${groupId}/add-expense`}>
         <button className="fixed right-6 w-16 h-16 bg-[#5BC5A7] rounded-full flex items-center justify-center shadow-lg hover:bg-[#4AB396] transition-all hover:scale-110 z-40 bottom-[calc(5.5rem+env(safe-area-inset-bottom))]" type="button">

@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase'
 import BottomNav from '@/components/ui/bottom-nav'
 import { fetchGroupMembersMap, type GroupMember } from '@/lib/group-members'
 import UserAvatar from '@/components/user-avatar'
+import { usePremium } from '@/hooks/use-premium'
 
 type GroupRow = {
   id: string
@@ -65,6 +66,7 @@ function timeAgo(dateStr: string) {
 
 export default function Activity() {
   const router = useRouter()
+  const { isPremium } = usePremium()
   const [loading, setLoading] = useState(true)
   const [myId, setMyId] = useState<string | null>(null)
   const [groups, setGroups] = useState<GroupRow[]>([])
@@ -293,11 +295,13 @@ export default function Activity() {
         )}
       </main>
 
-      <div className="max-w-4xl w-full mx-auto px-4 py-4">
-        <div className="bg-gray-100 rounded-xl p-4 text-center border-2 border-dashed border-gray-300">
-          <p className="text-xs text-gray-500">Espaco reservado para anuncio</p>
+      {!isPremium && (
+        <div className="max-w-4xl w-full mx-auto px-4 py-4">
+          <div className="bg-gray-100 rounded-xl p-4 text-center border-2 border-dashed border-gray-300">
+            <p className="text-xs text-gray-500">Espaco reservado para anuncio</p>
+          </div>
         </div>
-      </div>
+      )}
 
       <BottomNav />
     </div>

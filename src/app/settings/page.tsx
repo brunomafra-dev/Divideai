@@ -8,13 +8,14 @@ import { supabase } from '@/lib/supabase'
 import BottomNav from '@/components/ui/bottom-nav'
 import packageJson from '../../../package.json'
 import { useTheme } from 'next-themes'
+import { usePremium } from '@/hooks/use-premium'
 
 export default function Settings() {
   const router = useRouter()
-  const [isPremium, setIsPremium] = useState(false)
   const [loading, setLoading] = useState(true)
   const [mounted, setMounted] = useState(false)
   const { resolvedTheme, setTheme } = useTheme()
+  const { isPremium } = usePremium()
   const appVersion = useMemo(() => String((packageJson as { version?: string }).version || '0.0.0'), [])
 
   useEffect(() => {
@@ -32,13 +33,6 @@ export default function Settings() {
         return
       }
 
-      const { data } = await supabase
-        .from('profiles')
-        .select('is_premium')
-        .eq('id', user.id)
-        .maybeSingle()
-
-      setIsPremium(Boolean(data?.is_premium))
       setLoading(false)
     }
 
@@ -78,9 +72,11 @@ export default function Settings() {
             <h2 className="text-2xl font-bold">Divide Ai Premium</h2>
           </div>
           <p className="text-white/90 mb-4">Plano atual: {isPremium ? 'Premium' : 'Free'}</p>
-          <button className="w-full tap-target pressable bg-white text-[#5BC5A7] py-3 rounded-lg font-semibold hover:bg-gray-50 transition-colors" type="button">
-            {isPremium ? 'Gerenciar assinatura' : 'Assinar Premium'}
-          </button>
+          <Link href="/premium">
+            <button className="w-full tap-target pressable bg-white text-[#5BC5A7] py-3 rounded-lg font-semibold hover:bg-gray-50 transition-colors" type="button">
+              {isPremium ? 'Gerenciar Plano' : 'Seja Premium'}
+            </button>
+          </Link>
         </div>
 
         <div className="surface-card overflow-hidden dark:bg-neutral-900 dark:border-neutral-800">
