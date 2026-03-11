@@ -106,7 +106,7 @@ export default function NotificationsPage() {
               <ArrowLeft className="w-6 h-6" />
             </button>
           </Link>
-          <h1 className="section-title">Notificacoes</h1>
+          <h1 className="section-title">Notificações</h1>
         </div>
       </header>
 
@@ -138,3 +138,4 @@ export default function NotificationsPage() {
     </div>
   )
 }
+

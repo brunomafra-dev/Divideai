@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { Plus, TrendingUp, TrendingDown } from 'lucide-react'
 import Link from 'next/link'
@@ -12,6 +12,7 @@ import { computePendingEdges } from '@/lib/pending-balances'
 import { fromCents, toCents } from '@/lib/money'
 import { auditDatabaseSecurity, type SecurityAuditReport } from '@/lib/security-audit'
 import { usePremium } from '@/hooks/use-premium'
+import { useAuth } from '@/context/AuthContext'
 
 interface Member {
   id: string
@@ -62,6 +63,7 @@ interface GroupUI {
 export default function Home() {
   const router = useRouter()
   const { isPremium } = usePremium()
+  const { user, loading: authLoading } = useAuth()
   const [groups, setGroups] = useState<GroupUI[]>([])
   const [totalBalance, setTotalBalance] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -75,6 +77,8 @@ export default function Home() {
   const [securityReport, setSecurityReport] = useState<SecurityAuditReport | null>(null)
   const [showSecurityIssues, setShowSecurityIssues] = useState(false)
   const securityAuditRanRef = useRef(false)
+  const runInFlightRef = useRef(false)
+  const rerunRequestedRef = useRef(false)
 
   const renderMemberAvatars = (members?: Member[], maxDisplay: number = 4) => {
     if (!members || members.length === 0) return null
@@ -109,21 +113,24 @@ export default function Home() {
   }
 
   useEffect(() => {
+    if (authLoading) return
+
     const run = async (showBlockingLoading: boolean = false) => {
+      if (runInFlightRef.current) {
+        rerunRequestedRef.current = true
+        return
+      }
+      runInFlightRef.current = true
       if (showBlockingLoading || !hasLoadedOnceRef.current) {
         setLoading(true)
       }
       try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession()
-
-        if (!session) {
+        if (!user?.id) {
           router.replace('/login')
           return
         }
 
-        const myId = session.user.id
+        const myId = user.id
 
         if (!securityAuditRanRef.current) {
           securityAuditRanRef.current = true
@@ -276,8 +283,13 @@ export default function Home() {
         setTotalToReceive(0)
         setTotalToPay(0)
       } finally {
+        runInFlightRef.current = false
         hasLoadedOnceRef.current = true
         setLoading(false)
+        if (rerunRequestedRef.current) {
+          rerunRequestedRef.current = false
+          void run(false)
+        }
       }
     }
 
@@ -317,7 +329,7 @@ export default function Home() {
       window.removeEventListener('focus', onFocus)
       document.removeEventListener('visibilitychange', onVisibilityChange)
     }
-  }, [router])
+  }, [authLoading, router, user?.id])
 
   if (loading) {
     return (
@@ -331,7 +343,10 @@ export default function Home() {
     <div className="min-h-screen bg-[#F7F7F7] flex flex-col overflow-x-hidden page-fade">
       <header className="bg-white shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-[#5BC5A7]">Divide Ai</h1>
+          <div className="flex items-center gap-2">
+            <img src="/logo/divideai-icon.png" alt="DivideAI" className="w-6 h-6 object-contain" />
+            <h1 className="text-2xl font-bold text-[#5BC5A7]">DivideAI</h1>
+          </div>
           <Link href="/profile">
             <div className="cursor-pointer hover:opacity-90 transition-opacity">
               <UserAvatar name={myDisplayName} avatarKey={myAvatarKey} isPremium={myIsPremium} className="w-10 h-10" textClassName="text-xs" />
@@ -360,7 +375,7 @@ export default function Home() {
                 <>
                   <TrendingDown className="w-6 h-6 text-[#FF6B6B]" />
                   <p className="text-3xl font-bold text-[#FF6B6B]">{showMyBalance ? `R$ ${Math.abs(totalBalance).toFixed(2)}` : 'Oculto'}</p>
-                  <span className="text-sm text-[#FF6B6B] bg-red-50 px-3 py-1 rounded-full">voce deve</span>
+                  <span className="text-sm text-[#FF6B6B] bg-red-50 px-3 py-1 rounded-full">Você deve</span>
                 </>
               )}
             </div>
@@ -399,7 +414,7 @@ export default function Home() {
                   onClick={() => setShowSecurityIssues((prev) => !prev)}
                   className="tap-target pressable px-3 py-1.5 text-xs rounded-lg border border-amber-300 text-amber-900 hover:bg-amber-200/60"
                 >
-                  {showSecurityIssues ? 'Ocultar relatorio' : 'Ver relatorio de seguranca'}
+                  {showSecurityIssues ? 'Ocultar relatório' : 'Ver relatório de seguranca'}
                 </button>
               </div>
 
@@ -466,7 +481,7 @@ export default function Home() {
                           </div>
                         ) : (
                           <div className="text-right">
-                            <p className="text-xs text-gray-600 mb-1">voce deve</p>
+                            <p className="text-xs text-gray-600 mb-1">Você deve</p>
                             <p className="text-lg font-semibold text-[#FF6B6B]">{showMyBalance ? `R$ ${Math.abs(group.balance).toFixed(2)}` : 'Oculto'}</p>
                           </div>
                         )}
@@ -494,3 +509,4 @@ export default function Home() {
     </div>
   )
 }
+

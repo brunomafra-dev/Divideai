@@ -1,6 +1,6 @@
 ﻿'use client'
 
-import { ArrowLeft, Crown, ChevronRight, LogOut } from 'lucide-react'
+import { ArrowLeft, Crown, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -14,6 +14,8 @@ export default function Settings() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [mounted, setMounted] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [deletingAccount, setDeletingAccount] = useState(false)
   const { resolvedTheme, setTheme } = useTheme()
   const { isPremium } = usePremium()
   const appVersion = useMemo(() => String((packageJson as { version?: string }).version || '0.0.0'), [])
@@ -39,7 +41,14 @@ export default function Settings() {
     load()
   }, [router])
 
-  const handleLogout = async () => {
+  const handleDeleteAccount = async () => {
+    setDeletingAccount(true)
+    const { error } = await supabase.rpc('delete_my_account')
+    if (error) {
+      console.error('settings.delete-account-error', error)
+      setDeletingAccount(false)
+      return
+    }
     await supabase.auth.signOut()
     router.replace('/login')
   }
@@ -103,7 +112,7 @@ export default function Settings() {
               </span>
             </button>
             <Link href="/settings/notifications" className="tap-target px-4 py-3 hover:bg-gray-50 dark:hover:bg-neutral-800 flex items-center justify-between transition-colors">
-              <span className="text-sm text-gray-800 dark:text-gray-100">Notificacoes</span>
+              <span className="text-sm text-gray-800 dark:text-gray-100">Notificações</span>
               <ChevronRight className="w-4 h-4 text-gray-500 dark:text-gray-300" />
             </Link>
             <Link href="/settings/privacy" className="tap-target px-4 py-3 hover:bg-gray-50 dark:hover:bg-neutral-800 flex items-center justify-between transition-colors">
@@ -121,7 +130,7 @@ export default function Settings() {
               <ChevronRight className="w-4 h-4 text-gray-500 dark:text-gray-300" />
             </Link>
             <Link href="/settings/privacy-policy" className="tap-target px-4 py-3 hover:bg-gray-50 dark:hover:bg-neutral-800 flex items-center justify-between transition-colors">
-              <span className="text-sm text-gray-800 dark:text-gray-100">Politica de privacidade</span>
+              <span className="text-sm text-gray-800 dark:text-gray-100">Política de privacidade</span>
               <ChevronRight className="w-4 h-4 text-gray-500 dark:text-gray-300" />
             </Link>
             <Link href="/settings/support" className="tap-target px-4 py-3 hover:bg-gray-50 dark:hover:bg-neutral-800 flex items-center justify-between transition-colors">
@@ -129,7 +138,7 @@ export default function Settings() {
               <ChevronRight className="w-4 h-4 text-gray-500 dark:text-gray-300" />
             </Link>
             <Link href="/settings/about" className="tap-target px-4 py-3 hover:bg-gray-50 dark:hover:bg-neutral-800 flex items-center justify-between transition-colors">
-              <span className="text-sm text-gray-500 dark:text-gray-300">Versao {appVersion}</span>
+              <span className="text-sm text-gray-500 dark:text-gray-300">Versão {appVersion}</span>
               <ChevronRight className="w-4 h-4 text-gray-400 dark:text-gray-400" />
             </Link>
           </div>
@@ -142,16 +151,45 @@ export default function Settings() {
         )}
 
         <button
-          onClick={handleLogout}
-          className="w-full tap-target pressable bg-white dark:bg-neutral-900 rounded-xl shadow-sm px-4 py-3 text-red-600 font-medium hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors flex items-center justify-center gap-2"
+          onClick={() => setShowDeleteModal(true)}
+          className="w-full tap-target touch-friendly pressable bg-white dark:bg-neutral-900 rounded-xl shadow-sm px-4 py-3 text-red-700 font-medium active:bg-red-50 dark:active:bg-red-950/40 transition-colors flex items-center justify-center"
           type="button"
         >
-          <LogOut className="w-4 h-4" />
-          Sair da conta
+          Excluir conta
         </button>
       </main>
+
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center px-4 pt-4 pb-[calc(6.5rem+env(safe-area-inset-bottom))] sm:p-4">
+          <div className="bg-white dark:bg-neutral-900 w-full max-w-md rounded-2xl shadow-xl p-4 space-y-4">
+            <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100">Excluir conta</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              Toda sua conta será removida permanentemente. Isso inclui seus grupos, registros e informações associadas.
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowDeleteModal(false)}
+                disabled={deletingAccount}
+                className="flex-1 tap-target touch-friendly pressable border border-gray-300 rounded-lg py-2 text-gray-700 dark:text-gray-200 active:bg-gray-100"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteAccount}
+                disabled={deletingAccount}
+                className="flex-1 tap-target touch-friendly pressable bg-red-600 text-white rounded-lg py-2 font-medium active:bg-red-700 disabled:opacity-60"
+              >
+                {deletingAccount ? 'Excluindo...' : 'Excluir conta'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <BottomNav />
     </div>
   )
 }
+

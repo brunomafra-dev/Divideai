@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import BottomNav from '@/components/ui/bottom-nav'
+import { termsSections, termsTitle } from '@/lib/legal-content'
 
 export default function TermsPage() {
   return (
@@ -14,17 +15,27 @@ export default function TermsPage() {
               <ArrowLeft className="w-6 h-6" />
             </button>
           </Link>
-          <h1 className="section-title">Termos de uso</h1>
+          <h1 className="section-title">{termsTitle}</h1>
         </div>
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-6">
-        <article className="surface-card p-5 space-y-4 text-sm text-gray-700 leading-6">
-          <p>O Divide Aí foi criado para ajudar você e seu grupo a organizar despesas de forma simples e transparente.</p>
-          <p>Ao usar o app, você concorda em registrar informações verdadeiras e respeitar os demais participantes.</p>
-          <p>Os pagamentos e as confirmações são controlados pelo próprio grupo. Por isso, sempre confirme com as pessoas envolvidas antes de marcar algo como quitado.</p>
-          <p>Nós nos comprometemos a manter o aplicativo funcionando com segurança e estabilidade, mas podemos fazer melhorias e ajustes ao longo do tempo.</p>
-          <p>Se houver uso indevido, comportamento abusivo ou tentativa de fraude, o acesso poderá ser limitado para proteger os demais usuários.</p>
+        <article className="surface-card p-5 space-y-5 text-sm text-gray-700 leading-6">
+          {termsSections.map((section) => (
+            <section key={section.title} className="space-y-2">
+              <h2 className="font-semibold text-gray-800">{section.title}</h2>
+              {section.paragraphs.map((paragraph) => (
+                <p key={paragraph}>{paragraph}</p>
+              ))}
+              {section.bullets && (
+                <ul className="list-disc pl-5 space-y-1">
+                  {section.bullets.map((bullet) => (
+                    <li key={bullet}>{bullet}</li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          ))}
         </article>
       </main>
 

@@ -231,12 +231,12 @@ export default function GroupPage() {
       const profile = profileMap.get(userId)
       const isSelf = String(userId) === String(currentUserId)
       const canShow = Boolean(profile?.privacy_profile_visible || isSelf)
-      const display = String(canShow ? (profile?.username || profile?.full_name || 'Usuario') : 'Participante').trim()
+      const display = String(canShow ? (profile?.username || profile?.full_name || 'usuário') : 'Participante').trim()
       return {
         id: userId,
         user_id: userId,
-        name: display || 'Usuario',
-        display_name: display || 'Usuario',
+        name: display || 'usuário',
+        display_name: display || 'usuário',
         avatar_key: canShow ? (profile?.avatar_key || '') : '',
         is_premium: canShow ? Boolean(profile?.is_premium) : false,
       }
@@ -405,7 +405,7 @@ export default function GroupPage() {
       if (!key) return null
       const existing = reportMap.get(key)
       if (existing) return existing
-      const fallbackName = participantNameMap.get(key) || (key === String(currentUserId) ? 'Voce' : 'Participante')
+      const fallbackName = participantNameMap.get(key) || (key === String(currentUserId) ? 'Você' : 'Participante')
       const created: ParticipantSummary = {
         userId: key,
         name: fallbackName,
@@ -469,7 +469,7 @@ export default function GroupPage() {
         description: tx.description,
         amount: tx.value,
         payerId: tx.payer_id,
-        payerName: tx.payer_id === currentUserId ? 'Voce' : payer?.name || 'Alguem',
+        payerName: tx.payer_id === currentUserId ? 'Você' : payer?.name || 'Alguem',
         date: tx.created_at || new Date().toISOString(),
         participants: txParticipantIds,
         status: String(tx.status || '').toLowerCase(),
@@ -719,7 +719,7 @@ export default function GroupPage() {
     } else if (successCount > 0 && failCount > 0) {
       setReportFeedback({ type: 'error', text: `Foram registrados ${successCount} pagamentos e ${failCount} falharam.` })
     } else {
-      setReportFeedback({ type: 'error', text: 'Nao foi possivel registrar os pagamentos sugeridos.' })
+      setReportFeedback({ type: 'error', text: 'Não foi possivel registrar os pagamentos sugeridos.' })
     }
 
     await loadGroup()
@@ -874,7 +874,7 @@ export default function GroupPage() {
   if (!group) {
     return (
       <div className="min-h-screen bg-[#F7F7F7] flex items-center justify-center">
-        <p className="text-gray-600">Grupo nao encontrado</p>
+        <p className="text-gray-600">Grupo Não encontrado</p>
       </div>
     )
   }
@@ -948,7 +948,7 @@ export default function GroupPage() {
             <button
               type="button"
               onClick={() => setShowParticipantModal(true)}
-              className="tap-target pressable w-8 h-8 rounded-full bg-[#5BC5A7] text-white hover:bg-[#4AB396] flex items-center justify-center"
+              className="tap-target touch-friendly pressable w-9 h-9 rounded-full bg-[#5BC5A7] text-white active:bg-[#4AB396] flex items-center justify-center"
             >
               <Plus className="w-4 h-4" />
             </button>
@@ -972,7 +972,7 @@ export default function GroupPage() {
                 <button
                   type="button"
                   onClick={handleShareInvite}
-                  className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100"
+                  className="tap-target touch-friendly pressable px-3 py-2 border border-gray-300 rounded-lg text-gray-700 active:bg-gray-100"
                 >
                   Compartilhar
                 </button>
@@ -981,7 +981,7 @@ export default function GroupPage() {
                   <button
                     type="button"
                     onClick={handleCopyInviteLink}
-                    className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 flex items-center gap-1"
+                    className="tap-target touch-friendly pressable px-3 py-2 border border-gray-300 rounded-lg text-gray-700 active:bg-gray-100 flex items-center gap-1"
                   >
                     <Copy className="w-4 h-4" />
                     Copiar link
@@ -990,7 +990,7 @@ export default function GroupPage() {
                     href={whatsappShareUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100"
+                    className="tap-target touch-friendly pressable px-3 py-2 border border-gray-300 rounded-lg text-gray-700 active:bg-gray-100"
                   >
                     WhatsApp
                   </a>
@@ -1006,7 +1006,7 @@ export default function GroupPage() {
           <div className="bg-white w-full max-w-md rounded-2xl shadow-xl p-4 space-y-4 max-h-[calc(100dvh-9rem-env(safe-area-inset-bottom))] sm:max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between">
               <h3 className="text-base font-semibold text-gray-800">Adicionar participante</h3>
-              <button onClick={() => setShowParticipantModal(false)} type="button" className="tap-target pressable text-gray-500 hover:text-gray-700">
+              <button onClick={() => setShowParticipantModal(false)} type="button" className="tap-target touch-friendly pressable text-gray-500 active:text-gray-700">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -1022,7 +1022,7 @@ export default function GroupPage() {
               />
               <button
                 onClick={handleAddManualParticipant}
-                className="w-full tap-target pressable py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-100"
+                className="w-full tap-target touch-friendly pressable py-2 border border-gray-300 text-gray-700 rounded-lg font-medium active:bg-gray-100"
                 type="button"
               >
                 Adicionar manualmente
@@ -1035,7 +1035,7 @@ export default function GroupPage() {
                   await handleCreateInvite()
                 }}
                 disabled={inviteLoading}
-                className="w-full tap-target pressable py-2 bg-[#5BC5A7] text-white rounded-lg font-medium hover:bg-[#4AB396] disabled:opacity-60 flex items-center justify-center gap-2"
+                className="w-full tap-target touch-friendly pressable py-2 bg-[#5BC5A7] text-white rounded-lg font-medium active:bg-[#4AB396] disabled:opacity-60 flex items-center justify-center gap-2"
                 type="button"
               >
                 <UserPlus className="w-4 h-4" />
@@ -1054,7 +1054,7 @@ export default function GroupPage() {
                       <button
                         type="button"
                         onClick={handleShareInvite}
-                        className="tap-target pressable px-3 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100"
+                        className="tap-target touch-friendly pressable px-3 py-2 border border-gray-300 rounded-lg text-gray-700 active:bg-gray-100"
                       >
                         Compartilhar
                       </button>
@@ -1063,7 +1063,7 @@ export default function GroupPage() {
                         <button
                           type="button"
                           onClick={handleCopyInviteLink}
-                          className="tap-target pressable px-3 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 flex items-center gap-1"
+                          className="tap-target touch-friendly pressable px-3 py-2 border border-gray-300 rounded-lg text-gray-700 active:bg-gray-100 flex items-center gap-1"
                         >
                           <Copy className="w-4 h-4" />
                           Copiar link
@@ -1072,7 +1072,7 @@ export default function GroupPage() {
                           href={whatsappShareUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className="tap-target pressable px-3 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100"
+                          className="tap-target touch-friendly pressable px-3 py-2 border border-gray-300 rounded-lg text-gray-700 active:bg-gray-100"
                         >
                           WhatsApp
                         </a>
@@ -1149,8 +1149,8 @@ export default function GroupPage() {
                     <div className="flex items-center justify-between">
                       <p className="section-subtitle">Consolidado por participante com saldo pendente do grupo.</p>
                       <div className="flex items-center gap-2">
-                        <button onClick={handleExportCsv} type="button" className="tap-target pressable px-3 py-2 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100">CSV</button>
-                        <button onClick={handleExportPdf} type="button" className="tap-target pressable px-3 py-2 text-sm bg-gray-800 text-white rounded-lg">PDF</button>
+                        <button onClick={handleExportCsv} type="button" className="tap-target touch-friendly pressable px-3 py-2 text-sm border border-gray-300 rounded-lg text-gray-700 active:bg-gray-100">CSV</button>
+                        <button onClick={handleExportPdf} type="button" className="tap-target touch-friendly pressable px-3 py-2 text-sm bg-gray-800 text-white rounded-lg active:bg-gray-700">PDF</button>
                       </div>
                     </div>
 
@@ -1203,14 +1203,14 @@ export default function GroupPage() {
                 <div className="border-t border-gray-200 pt-4">
                   <h4 className="text-sm font-semibold text-gray-800 mb-2">Balanco por pessoa</h4>
                   {personBalances.length === 0 ? (
-                    <p className="text-sm text-gray-600">Nenhum gasto pendente entre voces.</p>
+                    <p className="text-sm text-gray-600">Nenhum gasto pendente entre vocês.</p>
                   ) : (
                     <div className="space-y-2">
                       {personBalances.map((item) => {
                         const isReceive = item.amountCents > 0
                         const debtorId = isReceive ? item.userId : String(currentUserId)
                         const creditorId = isReceive ? String(currentUserId) : item.userId
-                        const debtorName = isReceive ? item.name : 'Voce'
+                        const debtorName = isReceive ? item.name : 'Você'
                         const debtorAvatarKey = isReceive ? item.avatarKey : undefined
                         const debtorIsPremium = isReceive ? item.isPremium : false
 
@@ -1227,7 +1227,7 @@ export default function GroupPage() {
                                 debtorIsPremium,
                               })
                             }
-                            className="w-full text-left rounded-lg border border-gray-200 p-3 bg-gray-50 hover:bg-gray-100 tap-target pressable"
+                            className="w-full text-left rounded-lg border border-gray-200 p-3 bg-gray-50 active:bg-gray-100 tap-target touch-friendly pressable"
                           >
                             <div className="flex items-center justify-between gap-3">
                               <div className="flex items-center gap-2 min-w-0">
@@ -1242,11 +1242,11 @@ export default function GroupPage() {
                               </div>
                               <p className={`text-sm font-semibold ${isReceive ? 'text-[#5BC5A7]' : 'text-[#FF6B6B]'}`}>
                                 {showMyBalance
-                                  ? `R$ ${fromCents(Math.abs(item.amountCents)).toFixed(2)} ${isReceive ? 'te deve' : 'voce deve'}`
+                                  ? `R$ ${fromCents(Math.abs(item.amountCents)).toFixed(2)} ${isReceive ? 'te deve' : 'Você deve'}`
                                   : 'Oculto'}
                               </p>
                             </div>
-                            <p className="text-xs text-gray-500 mt-1">Toque para ver o detalhamento da divida.</p>
+                            <p className="text-xs text-gray-500 mt-1">Toque para ver o detalhamento da dívida.</p>
                           </button>
                         )
                       })}
@@ -1275,9 +1275,9 @@ export default function GroupPage() {
                 <button
                   type="button"
                   onClick={() => setShowAuditIssues((prev) => !prev)}
-                  className="tap-target pressable px-3 py-1.5 text-xs rounded-lg border border-amber-300 text-amber-900 hover:bg-amber-200/60"
+                  className="tap-target touch-friendly pressable px-3 py-1.5 text-xs rounded-lg border border-amber-300 text-amber-900 active:bg-amber-200/60"
                 >
-                  {showAuditIssues ? 'Ocultar relatorio' : 'Ver relatorio'}
+                  {showAuditIssues ? 'Ocultar relatório' : 'Ver relatório'}
                 </button>
               </div>
 
@@ -1321,7 +1321,7 @@ export default function GroupPage() {
             <h3 className="text-lg font-medium text-gray-800 mb-2">Nenhum gasto ainda</h3>
             <p className="text-gray-600 mb-6">Adicione o primeiro gasto do grupo</p>
             <Link href={`/group/${groupId}/add-expense`}>
-              <button className="tap-target pressable bg-[#5BC5A7] text-white px-6 py-3 rounded-lg hover:bg-[#4AB396] transition-colors" type="button">
+              <button className="tap-target touch-friendly pressable bg-[#5BC5A7] text-white px-6 py-3 rounded-lg active:bg-[#4AB396] transition-colors" type="button">
                 Adicionar gasto
               </button>
             </Link>
@@ -1335,7 +1335,7 @@ export default function GroupPage() {
                 <Link href={`/group/${groupId}/add-expense`}>
                   <button
                     type="button"
-                    className="tap-target pressable px-3 py-1.5 bg-[#5BC5A7] text-white text-sm rounded-lg hover:bg-[#4AB396]"
+                    className="tap-target touch-friendly pressable px-3 py-1.5 bg-[#5BC5A7] text-white text-sm rounded-lg active:bg-[#4AB396]"
                   >
                     Adicionar gasto
                   </button>
@@ -1397,7 +1397,7 @@ export default function GroupPage() {
                                     void handleDeletePaidExpense(transaction.id, transaction.payerId, Boolean(transaction.isPaid))
                                   }}
                                   disabled={deletingExpenseId === transaction.id}
-                                  className="tap-target pressable inline-flex items-center justify-center w-7 h-7 rounded-full border border-red-200 text-red-500 hover:bg-red-50 disabled:opacity-60"
+                                  className="tap-target touch-friendly pressable inline-flex items-center justify-center w-8 h-8 rounded-full border border-red-200 text-red-500 active:bg-red-50 disabled:opacity-60"
                                   title="Excluir gasto quitado"
                                   aria-label="Excluir gasto quitado"
                                 >
@@ -1416,7 +1416,7 @@ export default function GroupPage() {
                       <p className="text-xs text-gray-500 mt-2">Somente visualizacao (apenas quem criou o gasto pode editar)</p>
                     )}
                     {transaction.isPaid && (
-                      <p className="text-xs text-[#5BC5A7] mt-2">Gasto quitado (nao editavel)</p>
+                      <p className="text-xs text-[#5BC5A7] mt-2">Gasto quitado (Não editavel)</p>
                     )}
                   </div>
                 )
@@ -1445,7 +1445,7 @@ export default function GroupPage() {
       )}
 
       <Link href={`/group/${groupId}/add-expense`}>
-        <button className="fixed right-6 w-16 h-16 bg-[#5BC5A7] rounded-full flex items-center justify-center shadow-lg hover:bg-[#4AB396] transition-all hover:scale-110 z-40 bottom-[calc(5.5rem+env(safe-area-inset-bottom))]" type="button">
+        <button className="fixed right-6 w-16 h-16 bg-[#5BC5A7] rounded-full flex items-center justify-center shadow-lg active:bg-[#4AB396] transition-all z-40 bottom-[calc(5.5rem+env(safe-area-inset-bottom))]" type="button">
           <Plus className="w-8 h-8 text-white" />
         </button>
       </Link>

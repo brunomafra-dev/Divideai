@@ -86,6 +86,9 @@ export default function Payments() {
   const [myId, setMyId] = useState<string | null>(null)
   const [showMyBalance, setShowMyBalance] = useState(true)
   const [processingPaymentId, setProcessingPaymentId] = useState<string | null>(null)
+  const [processingReminderId, setProcessingReminderId] = useState<string | null>(null)
+  const [justSentReminderId, setJustSentReminderId] = useState<string | null>(null)
+  const [lastReminderByPair, setLastReminderByPair] = useState<Map<string, string>>(new Map())
   const [myPixKey, setMyPixKey] = useState('')
   const [chargeTarget, setChargeTarget] = useState<Payment | null>(null)
   const [chargePixKey, setChargePixKey] = useState('')
@@ -153,6 +156,16 @@ export default function Payments() {
       const payRows = ((payData as PaymentRow[] | null) || [])
         .filter((p) => allowedGroupIds.has(String(p.group_id || '')))
         .map((p) => ({ ...p, amount: Number(p.amount) || 0 }))
+
+      const { data: reminderData, error: reminderError } = await supabase
+        .from('payment_reminders')
+        .select('group_id,from_user,to_user,created_at')
+        .eq('from_user', currentUserId)
+        .order('created_at', { ascending: false })
+
+      if (reminderError) {
+        console.error('payments.reminders-load-error', reminderError)
+      }
 
     const groupMap = new Map<string, GroupRow>()
     groups.forEach((g) => groupMap.set(g.id, g))
@@ -234,8 +247,8 @@ export default function Payments() {
         id: `pending_${key}`,
         description: item.description,
         amount: fromCents(item.amountCents),
-        from: item.fromUserId === currentUserId ? 'Voce' : nameFromGroup(item.groupId, item.fromUserId),
-        to: item.toUserId === currentUserId ? 'Voce' : nameFromGroup(item.groupId, item.toUserId),
+        from: item.fromUserId === currentUserId ? 'Você' : nameFromGroup(item.groupId, item.fromUserId),
+        to: item.toUserId === currentUserId ? 'Você' : nameFromGroup(item.groupId, item.toUserId),
         fromUserId: item.fromUserId,
         toUserId: item.toUserId,
         groupId: item.groupId,
@@ -256,8 +269,8 @@ export default function Payments() {
         id: `paid_${p.id}`,
         description: 'Pagamento registrado',
         amount: p.amount,
-        from: p.from_user === currentUserId ? 'Voce' : nameFromGroup(p.group_id, p.from_user),
-        to: p.to_user === currentUserId ? 'Voce' : nameFromGroup(p.group_id, p.to_user),
+        from: p.from_user === currentUserId ? 'Você' : nameFromGroup(p.group_id, p.from_user),
+        to: p.to_user === currentUserId ? 'Você' : nameFromGroup(p.group_id, p.to_user),
         fromUserId: p.from_user,
         toUserId: p.to_user,
         groupId: p.group_id,
@@ -275,9 +288,20 @@ export default function Payments() {
       )
 
       setPayments(merged)
+
+      const reminderMap = new Map<string, string>()
+      for (const row of (reminderData as Array<{ group_id: string; from_user: string; to_user: string; created_at: string }> | null) || []) {
+        if (!allowedGroupIds.has(String(row.group_id || ''))) continue
+        const k = `${row.group_id}|${row.from_user}|${row.to_user}`
+        if (!reminderMap.has(k)) {
+          reminderMap.set(k, row.created_at)
+        }
+      }
+      setLastReminderByPair(reminderMap)
     } catch (error) {
       console.error('payments.load-unhandled-error', error)
       setPayments([])
+      setLastReminderByPair(new Map())
     } finally {
       hasLoadedOnceRef.current = true
       setLoading(false)
@@ -349,12 +373,103 @@ export default function Payments() {
 
     setFeedback({
       type: 'success',
-      text: pending.toUserId === myId ? 'Cobranca registrada.' : 'Pagamento registrado.',
+      text: pending.toUserId === myId ? 'Cobrança registrada.' : 'Pagamento registrado.',
     })
     await load(false)
     router.refresh()
     setProcessingPaymentId(null)
   }, [load, myId, router])
+
+  const handleSendReminder = useCallback(async (pending: Payment) => {
+    if (!myId || pending.status !== 'pending') return
+    if (pending.toUserId !== myId) {
+      setFeedback({ type: 'error', text: 'Apenas quem tem a receber pode enviar lembrete.' })
+      return
+    }
+
+    const allowed = checkRateLimit(myId, 'sendReminder', RATE_LIMITS.sendReminder)
+    if (!allowed) {
+      setFeedback({ type: 'error', text: 'Muitas ações em pouco tempo. Tente novamente.' })
+      return
+    }
+
+    setProcessingReminderId(pending.id)
+    setFeedback(null)
+
+    try {
+      const { data: lastReminder, error: lastReminderError } = await supabase
+        .from('payment_reminders')
+        .select('id,created_at')
+        .eq('group_id', pending.groupId)
+        .eq('from_user', pending.toUserId)
+        .eq('to_user', pending.fromUserId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (lastReminderError) {
+        throw lastReminderError
+      }
+
+      if (lastReminder?.created_at) {
+        const elapsedMs = Date.now() - new Date(lastReminder.created_at).getTime()
+        const cooldownMs = 5 * 60 * 1000
+        if (elapsedMs < cooldownMs) {
+          setFeedback({ type: 'error', text: 'Você já enviou um lembrete recentemente.' })
+          setProcessingReminderId(null)
+          return
+        }
+      }
+
+      const { error: insertError } = await supabase
+        .from('payment_reminders')
+        .insert({
+          group_id: pending.groupId,
+          from_user: pending.toUserId,
+          to_user: pending.fromUserId,
+        })
+
+      if (insertError) {
+        throw insertError
+      }
+
+      setFeedback({ type: 'success', text: 'Lembrete enviado.' })
+      setJustSentReminderId(pending.id)
+      setLastReminderByPair((prev) => {
+        const next = new Map(prev)
+        const key = `${pending.groupId}|${pending.toUserId}|${pending.fromUserId}`
+        next.set(key, new Date().toISOString())
+        return next
+      })
+      setTimeout(() => {
+        setJustSentReminderId((current) => (current === pending.id ? null : current))
+      }, 2500)
+    } catch (error: any) {
+      console.error('payments.reminder-error', {
+        code: error?.code,
+        message: error?.message,
+        details: error?.details,
+        hint: error?.hint,
+      })
+      setFeedback({ type: 'error', text: 'Erro ao enviar lembrete.' })
+    } finally {
+      setProcessingReminderId(null)
+    }
+  }, [myId])
+
+  const formatRelativeReminder = useCallback((isoDate: string) => {
+    const diffMs = Date.now() - new Date(isoDate).getTime()
+    const minutes = Math.floor(diffMs / 60000)
+    if (minutes <= 0) return 'agora'
+    if (minutes === 1) return 'há 1 minuto'
+    if (minutes < 60) return `há ${minutes} minutos`
+    const hours = Math.floor(minutes / 60)
+    if (hours === 1) return 'há 1 hora'
+    if (hours < 24) return `há ${hours} horas`
+    const days = Math.floor(hours / 24)
+    if (days === 1) return 'há 1 dia'
+    return `há ${days} dias`
+  }, [])
 
   const buildChargeMessage = useCallback((pending: Payment, pixKey: string) => {
     const amountLabel = pending.amount.toFixed(2)
@@ -362,7 +477,7 @@ export default function Payments() {
     return [
       'Ola! 😊',
       '',
-      `Voce ficou com R$ ${amountLabel} referente ao grupo ${pending.groupName}.`,
+      `Você ficou com R$ ${amountLabel} referente ao grupo ${pending.groupName}.`,
       'Quando puder, me envia via PIX por favor. Obrigado!',
       '',
       pix ? `PIX copia e cola: ${pix}` : '',
@@ -385,6 +500,28 @@ export default function Payments() {
     setDetailTarget(pending)
   }, [])
 
+  const handleCopyChargeMessage = useCallback(async () => {
+    if (!chargeMessage) return
+    await navigator.clipboard.writeText(chargeMessage)
+    setFeedback({ type: 'success', text: 'Mensagem de Cobrança copiada.' })
+  }, [chargeMessage])
+
+  const handleWhatsAppCharge = useCallback(() => {
+    if (!chargeMessage) return
+    const url = `https://wa.me/?text=${encodeURIComponent(chargeMessage)}`
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }, [chargeMessage])
+
+  const filteredPayments = useMemo(() => {
+    return payments.filter((payment) => (filter === 'all' ? true : payment.status === filter))
+  }, [payments, filter])
+
+  const pendingPayments = useMemo(() => filteredPayments.filter((p) => p.status === 'pending'), [filteredPayments])
+
+  const pendingList = useMemo(() => {
+    return [...pendingPayments].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+  }, [pendingPayments])
+
   const handleOpenDetailsByPerson = useCallback((personUserId: string) => {
     if (!myId) return
 
@@ -405,28 +542,6 @@ export default function Payments() {
       breakdown: allBreakdown,
     })
   }, [myId, pendingPayments])
-
-  const handleCopyChargeMessage = useCallback(async () => {
-    if (!chargeMessage) return
-    await navigator.clipboard.writeText(chargeMessage)
-    setFeedback({ type: 'success', text: 'Mensagem de cobranca copiada.' })
-  }, [chargeMessage])
-
-  const handleWhatsAppCharge = useCallback(() => {
-    if (!chargeMessage) return
-    const url = `https://wa.me/?text=${encodeURIComponent(chargeMessage)}`
-    window.open(url, '_blank', 'noopener,noreferrer')
-  }, [chargeMessage])
-
-  const filteredPayments = useMemo(() => {
-    return payments.filter((payment) => (filter === 'all' ? true : payment.status === filter))
-  }, [payments, filter])
-
-  const pendingPayments = useMemo(() => filteredPayments.filter((p) => p.status === 'pending'), [filteredPayments])
-
-  const pendingList = useMemo(() => {
-    return [...pendingPayments].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-  }, [pendingPayments])
 
   const payableByPerson = useMemo(() => {
     if (!myId) return [] as PersonPendingSummary[]
@@ -582,7 +697,7 @@ export default function Payments() {
               <Clock className="w-10 h-10 text-gray-400" />
             </div>
             <h3 className="text-lg font-medium text-gray-800 mb-2">Nenhum pagamento</h3>
-            <p className="text-gray-600">{filter === 'all' ? 'Voce ainda nao tem pagamentos registrados' : filter === 'paid' ? 'Nenhum pagamento concluido' : 'Nenhum pagamento pendente'}</p>
+            <p className="text-gray-600">{filter === 'all' ? 'Você ainda Não tem pagamentos registrados' : filter === 'paid' ? 'Nenhum pagamento concluído' : 'Nenhum pagamento pendente'}</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -634,6 +749,9 @@ export default function Payments() {
                         const counterpartAvatar = isCreditor ? pending.fromAvatarKey : pending.toAvatarKey
                         const counterpartPremium = isCreditor ? pending.fromIsPremium : pending.toIsPremium
                         const isProcessing = processingPaymentId === pending.id
+                        const isReminding = processingReminderId === pending.id
+                        const pairKey = `${pending.groupId}|${pending.toUserId}|${pending.fromUserId}`
+                        const lastReminderAt = isCreditor ? lastReminderByPair.get(pairKey) : null
 
                         return (
                           <div
@@ -663,7 +781,7 @@ export default function Payments() {
 
                             <div className="mt-3 flex items-center justify-between gap-2">
                               <p className="text-xs text-gray-500">
-                                {isCreditor ? 'Essa pessoa te deve este valor.' : 'Voce deve este valor para essa pessoa.'}
+                                {isCreditor ? 'Essa pessoa te deve este valor.' : 'Você deve este valor para essa pessoa.'}
                               </p>
                               <div className="flex items-center gap-2">
                                 {isCreditor && (
@@ -675,9 +793,20 @@ export default function Payments() {
                                         handleOpenCharge(pending)
                                       }}
                                       disabled={isProcessing}
-                                      className="tap-target pressable px-3 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-medium disabled:opacity-60"
+                                      className="tap-target touch-friendly pressable px-3 py-2 rounded-lg border border-amber-300 text-amber-700 bg-amber-50 active:bg-amber-100 text-xs font-medium disabled:opacity-60"
                                     >
                                       Cobrar
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        void handleSendReminder(pending)
+                                      }}
+                                      disabled={isReminding}
+                                      className="tap-target touch-friendly pressable px-3 py-2 rounded-lg border border-gray-300 text-gray-700 bg-white active:bg-gray-100 text-xs font-medium disabled:opacity-60"
+                                    >
+                                      {isReminding ? 'Enviando...' : justSentReminderId === pending.id ? 'Enviado agora' : 'Lembrar'}
                                     </button>
                                     <button
                                       type="button"
@@ -686,7 +815,7 @@ export default function Payments() {
                                         handleRegisterPayment(pending)
                                       }}
                                       disabled={isProcessing}
-                                      className="tap-target pressable px-3 py-2 rounded-lg bg-[#5BC5A7] hover:bg-[#4AB396] text-white text-xs font-medium disabled:opacity-60"
+                                      className="tap-target touch-friendly pressable px-3 py-2 rounded-lg bg-[#5BC5A7] active:bg-[#4AB396] text-white text-xs font-semibold disabled:opacity-60"
                                     >
                                       {isProcessing ? 'Salvando...' : 'Marcar como pago'}
                                     </button>
@@ -697,6 +826,11 @@ export default function Payments() {
                             {isDebtor && (
                               <p className="mt-2 text-xs text-gray-500">
                                 Somente quem tem a receber pode confirmar este pagamento.
+                              </p>
+                            )}
+                            {isCreditor && lastReminderAt && (
+                              <p className="mt-2 text-xs text-gray-500">
+                                Último lembrete: {formatRelativeReminder(lastReminderAt)}
                               </p>
                             )}
                             <p className="mt-2 text-xs text-gray-500 underline">Toque para ver detalhes da origem</p>
@@ -752,7 +886,7 @@ export default function Payments() {
               <button
                 type="button"
                 onClick={() => setDetailTarget(null)}
-                className="tap-target pressable text-gray-500 hover:text-gray-700"
+                className="tap-target touch-friendly pressable text-gray-500 active:text-gray-700"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -762,7 +896,7 @@ export default function Payments() {
               <p className="text-sm font-medium text-gray-800">
                 {detailTarget.toUserId === myId
                   ? `${detailTarget.from} te deve`
-                  : `Voce deve para ${detailTarget.to}`}
+                  : `Você deve para ${detailTarget.to}`}
                 {showMyBalance ? ` R$ ${detailTarget.amount.toFixed(2)}` : ''}
               </p>
               <p className="text-xs text-gray-500 mt-1">{detailTarget.groupName}</p>
@@ -806,7 +940,7 @@ export default function Payments() {
               <button
                 type="button"
                 onClick={() => setChargeTarget(null)}
-                className="tap-target pressable text-gray-500 hover:text-gray-700"
+                className="tap-target touch-friendly pressable text-gray-500 active:text-gray-700"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -845,7 +979,7 @@ export default function Payments() {
               <button
                 type="button"
                 onClick={handleCopyChargeMessage}
-                className="tap-target pressable flex-1 px-3 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 flex items-center justify-center gap-2"
+                className="tap-target touch-friendly pressable flex-1 px-3 py-2 border border-gray-300 rounded-lg text-gray-700 active:bg-gray-100 flex items-center justify-center gap-2"
               >
                 <Copy className="w-4 h-4" />
                 Copiar mensagem
@@ -853,7 +987,7 @@ export default function Payments() {
               <button
                 type="button"
                 onClick={handleWhatsAppCharge}
-                className="tap-target pressable flex-1 px-3 py-2 bg-[#25D366] rounded-lg text-white hover:brightness-95 flex items-center justify-center gap-2"
+                className="tap-target touch-friendly pressable flex-1 px-3 py-2 bg-[#25D366] rounded-lg text-white active:brightness-95 flex items-center justify-center gap-2"
               >
                 <MessageCircle className="w-4 h-4" />
                 WhatsApp
@@ -867,4 +1001,5 @@ export default function Payments() {
     </div>
   )
 }
+
 

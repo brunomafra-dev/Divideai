@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { ArrowLeft, Copy, UserPlus } from 'lucide-react'
 import Link from 'next/link'
@@ -74,7 +74,7 @@ export default function CreateGroup() {
       } = await supabase.auth.getUser()
 
       if (userError || !user) {
-        setFeedback({ type: 'error', text: 'Usuario nao autenticado.' })
+        setFeedback({ type: 'error', text: 'usuário Não autenticado.' })
         return
       }
 
@@ -296,3 +296,4 @@ export default function CreateGroup() {
     </div>
   )
 }
+

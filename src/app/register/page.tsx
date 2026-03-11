@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { getAuthRedirectUrl } from '@/lib/site-url'
 import { ensureProfileForUser, savePendingProfileSeed } from '@/lib/profiles'
+import LegalDocModal from '@/components/legal-doc-modal'
 
 function normalizeUsername(raw: string) {
   return raw
@@ -29,6 +30,10 @@ export default function RegisterPage() {
   const [success, setSuccess] = useState<string | null>(null)
   const [usernameStatus, setUsernameStatus] = useState<'idle' | 'available' | 'taken'>('idle')
   const [checkingUsername, setCheckingUsername] = useState(false)
+  const [termsViewed, setTermsViewed] = useState(false)
+  const [privacyViewed, setPrivacyViewed] = useState(false)
+  const [acceptedLegal, setAcceptedLegal] = useState(false)
+  const [legalModal, setLegalModal] = useState<'terms' | 'privacy' | null>(null)
 
   async function checkUsernameAvailability(rawValue?: string) {
     const candidate = normalizeUsername(rawValue ?? username)
@@ -80,14 +85,20 @@ export default function RegisterPage() {
     }
 
     if (password !== confirmPassword) {
-      setError('As senhas nao coincidem')
+      setError('As senhas Não coincidem')
+      setLoading(false)
+      return
+    }
+
+    if (!acceptedLegal) {
+      setError('Você precisa aceitar os Termos de Uso e a Política de Privacidade.')
       setLoading(false)
       return
     }
 
     const available = await checkUsernameAvailability(cleanUsername)
     if (!available) {
-      setError('Esse nome de usuario ja esta em uso. Escolha outro.')
+      setError('Esse nome de usuário ja esta em uso. Escolha outro.')
       setLoading(false)
       return
     }
@@ -114,7 +125,7 @@ export default function RegisterPage() {
       }
 
       if (!data.user) {
-        setError('Nao foi possivel criar usuario')
+        setError('Não foi possivel criar usuário')
         setLoading(false)
         return
       }
@@ -147,6 +158,13 @@ export default function RegisterPage() {
       }
 
       if (data.session) {
+        await supabase
+          .from('profiles')
+          .update({
+            terms_accepted_at: new Date().toISOString(),
+            privacy_accepted_at: new Date().toISOString(),
+          })
+          .eq('id', data.user.id)
         router.replace('/')
         return
       }
@@ -189,7 +207,7 @@ export default function RegisterPage() {
 
         <input
           type="text"
-          placeholder="Nome de usuario"
+          placeholder="Nome de usuário"
           value={username}
           onChange={e => {
             setUsername(e.target.value)
@@ -207,9 +225,9 @@ export default function RegisterPage() {
           {checkingUsername
             ? 'Verificando disponibilidade...'
             : usernameStatus === 'available'
-              ? 'Nome de usuario disponivel'
+              ? 'Nome de usuário disponivel'
               : usernameStatus === 'taken'
-                ? 'Nome de usuario indisponivel'
+                ? 'Nome de usuário indisponivel'
                 : 'Use letras, numeros e underscore'}
         </p>
 
@@ -242,6 +260,42 @@ export default function RegisterPage() {
           {loading ? 'Criando conta...' : 'Registrar'}
         </button>
 
+        <div className="rounded-lg border border-gray-200 p-3 bg-gray-50 space-y-2">
+          <button
+            type="button"
+            onClick={() => setLegalModal('terms')}
+            className="text-sm text-[#5BC5A7] underline"
+          >
+            Ler Termos de Uso
+          </button>
+          <button
+            type="button"
+            onClick={() => setLegalModal('privacy')}
+            className="ml-3 text-sm text-[#5BC5A7] underline"
+          >
+            Ler Política de Privacidade
+          </button>
+          <label className="flex items-start gap-2 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              checked={acceptedLegal}
+              disabled={!termsViewed || !privacyViewed}
+              onChange={(e) => {
+                if (!termsViewed || !privacyViewed) {
+                  setError('Leia os Termos e a Política antes de aceitar.')
+                  return
+                }
+                setAcceptedLegal(e.target.checked)
+              }}
+              className="mt-1"
+            />
+            <span>Li e aceito os Termos de Uso e a Política de Privacidade</span>
+          </label>
+          {(!termsViewed || !privacyViewed) && (
+            <p className="text-xs text-gray-500">Você precisa abrir e ler os dois documentos para habilitar o aceite.</p>
+          )}
+        </div>
+
         <p className="text-sm text-center text-gray-500">
           Ja tem conta?{' '}
           <Link href="/login" className="text-[#5BC5A7] font-medium">
@@ -249,6 +303,17 @@ export default function RegisterPage() {
           </Link>
         </p>
       </form>
+
+      <LegalDocModal
+        open={legalModal !== null}
+        type={legalModal || 'terms'}
+        onClose={() => setLegalModal(null)}
+        onViewed={() => {
+          if (legalModal === 'terms') setTermsViewed(true)
+          if (legalModal === 'privacy') setPrivacyViewed(true)
+        }}
+      />
     </div>
   )
 }
+

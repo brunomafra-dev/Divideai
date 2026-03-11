@@ -22,6 +22,10 @@ export const RATE_LIMITS = {
     maxActions: 10,
     windowMs: 60000,
   },
+  sendReminder: {
+    maxActions: 10,
+    windowMs: 60000,
+  },
 } as const
 
 export function checkRateLimit(

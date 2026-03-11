@@ -15,7 +15,7 @@ export default function BottomNav() {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-neutral-950/95 backdrop-blur border-t border-gray-200 dark:border-neutral-800 safe-area-bottom z-50 transition-all duration-200">
-      <div className="max-w-4xl mx-auto px-4 py-3 flex justify-around items-center min-h-[72px]">
+      <div className="max-w-4xl mx-auto px-4 py-3 sm:py-2 flex justify-around items-center min-h-[76px]">
         <Link href="/" className={`tap-target px-3 py-2 rounded-xl pressable flex flex-col items-center gap-1 transition-all duration-200 ${isActive('/') && !pathname.includes('/activity') && !pathname.includes('/payments') && !pathname.includes('/settings') ? 'text-[#5BC5A7] bg-[#5BC5A7]/10' : 'text-gray-400 dark:text-gray-300 hover:text-[#5BC5A7]'}`}>
           <div className="w-6 h-6 flex items-center justify-center">
             <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">

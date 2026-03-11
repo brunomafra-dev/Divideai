@@ -44,7 +44,7 @@ export default function InviteTokenPage() {
 
         if (sessionError) {
           console.error('invite.session-error', sessionError)
-          setMessage('Erro ao validar sessao')
+          setMessage('Erro ao validar Sessão')
           return
         }
 
@@ -92,7 +92,7 @@ export default function InviteTokenPage() {
 
         if (groupError || !groupRow) {
           console.error('invite.group-lookup-error', groupError)
-          setMessage('Grupo nao encontrado')
+          setMessage('Grupo Não encontrado')
           return
         }
 

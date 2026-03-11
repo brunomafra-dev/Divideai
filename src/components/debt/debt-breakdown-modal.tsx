@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useMemo, useState } from 'react'
 import { X } from 'lucide-react'
@@ -89,7 +89,7 @@ export default function DebtBreakdownModal({
     <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center px-4 pt-4 pb-[calc(6.5rem+env(safe-area-inset-bottom))] sm:p-4">
       <div className="bg-white w-full max-w-md rounded-2xl shadow-xl p-4 space-y-4 max-h-[calc(100dvh-9rem-env(safe-area-inset-bottom))] sm:max-h-[85vh] overflow-y-auto">
         <div className="flex items-center justify-between">
-          <h3 className="text-base font-semibold text-gray-800">Detalhamento da divida</h3>
+          <h3 className="text-base font-semibold text-gray-800">Detalhamento da dívida</h3>
           <button
             type="button"
             onClick={onClose}
@@ -113,7 +113,7 @@ export default function DebtBreakdownModal({
         {loading ? (
           <p className="text-sm text-gray-600">Carregando...</p>
         ) : items.length === 0 ? (
-          <p className="text-sm text-gray-600">Nenhum gasto pendente entre voces.</p>
+          <p className="text-sm text-gray-600">Nenhum gasto pendente entre vocês.</p>
         ) : (
           <div className="space-y-2">
             {items.map((item) => (
@@ -138,3 +138,4 @@ export default function DebtBreakdownModal({
     </div>
   )
 }
+

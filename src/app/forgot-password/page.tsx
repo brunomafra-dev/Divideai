@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import Link from 'next/link'
@@ -26,7 +26,7 @@ export default function ForgotPasswordPage() {
 
       if (resetError) throw resetError
 
-      setSuccess('Se o e-mail existir, voce recebera um link para redefinir a senha.')
+      setSuccess('Se o e-mail existir, Você recebera um link para redefinir a senha.')
     } catch (err: any) {
       setError(err?.message || 'Erro ao solicitar recuperacao de senha')
     } finally {

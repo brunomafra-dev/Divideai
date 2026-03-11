@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
@@ -63,7 +63,7 @@ export default function RegisterPage() {
       }
 
       if (!data.user) {
-        setError('Nao foi possivel criar usuario')
+        setError('Não foi possivel criar usuário')
         setLoading(false)
         return
       }

@@ -134,7 +134,7 @@ export default function GroupSettings() {
         const profile = profileMap.get(id)
         return {
           id,
-          name: profile?.username || profile?.full_name || 'Usuario',
+          name: profile?.username || profile?.full_name || 'usuário',
         }
       })
 
@@ -203,7 +203,7 @@ export default function GroupSettings() {
       return
     }
 
-    const confirmed = confirm('Tem certeza que deseja excluir este grupo? Esta acao nao pode ser desfeita.')
+    const confirmed = confirm('Tem certeza que deseja excluir este grupo? Esta acao Não pode ser desfeita.')
     if (!confirmed) return
 
     setDeleting(true)

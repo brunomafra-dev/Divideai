@@ -38,9 +38,9 @@ export default function PremiumPage() {
 
           <ul className="space-y-2 text-sm text-gray-700 dark:text-gray-200 mb-6">
             <li>✔ Remover anúncios</li>
-            <li>✔ Modo escuro (em breve)</li>
+            <li>✔ Modo escuro </li>
             <li>✔ Grupos ilimitados</li>
-            <li>✔ Exportar relatórios (em breve)</li>
+            <li>✔ Exportar relatórios </li>
           </ul>
 
           <p className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-5">R$4,99 / mês</p>

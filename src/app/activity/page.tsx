@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { ArrowLeft, Clock } from 'lucide-react'
 import Link from 'next/link'
@@ -199,7 +199,7 @@ export default function Activity() {
       const groupName = group?.name || 'Grupo'
       const payerName =
         myId && String(tx.payer_id) === String(myId)
-          ? 'Voce'
+          ? 'Você'
           : userNameFromGroup(tx.group_id, tx.payer_id) || 'Alguem'
 
       items.push({
@@ -219,11 +219,11 @@ export default function Activity() {
       const groupName = group?.name || 'Grupo'
       const fromName =
         myId && String(pay.from_user) === String(myId)
-          ? 'Voce'
+          ? 'Você'
           : userNameFromGroup(pay.group_id, pay.from_user) || 'Alguem'
       const toName =
         myId && String(pay.to_user) === String(myId)
-          ? 'voce'
+          ? 'Você'
           : userNameFromGroup(pay.group_id, pay.to_user) || 'alguem'
 
       items.push({
@@ -307,4 +307,5 @@ export default function Activity() {
     </div>
   )
 }
+
 

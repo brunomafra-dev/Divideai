@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { Eye, EyeOff, Mail, Lock, User, AtSign } from 'lucide-react'
 import { getAuthRedirectUrl } from '@/lib/site-url'
 import { ensureProfileForUser, savePendingProfileSeed } from '@/lib/profiles'
+import LegalDocModal from '@/components/legal-doc-modal'
 
 function normalizeUsername(raw: string) {
   return raw
@@ -28,6 +29,11 @@ export default function SignUpPage() {
   const [error, setError] = useState('')
   const [usernameStatus, setUsernameStatus] = useState<'idle' | 'available' | 'taken'>('idle')
   const [checkingUsername, setCheckingUsername] = useState(false)
+  const [termsViewed, setTermsViewed] = useState(false)
+  const [privacyViewed, setPrivacyViewed] = useState(false)
+  const [acceptedLegal, setAcceptedLegal] = useState(false)
+  const [legalModal, setLegalModal] = useState<'terms' | 'privacy' | null>(null)
+  const [showBrandLogo, setShowBrandLogo] = useState(true)
 
   const checkUsernameAvailability = async (rawValue?: string) => {
     const candidate = normalizeUsername(rawValue ?? username)
@@ -79,19 +85,25 @@ export default function SignUpPage() {
 
     const available = await checkUsernameAvailability(cleanUsername)
     if (!available) {
-      setError('Esse nome de usuario ja esta em uso. Escolha outro.')
+      setError('Esse nome de usuário ja esta em uso. Escolha outro.')
       setLoading(false)
       return
     }
 
     if (password !== confirmPassword) {
-      setError('As senhas nao coincidem')
+      setError('As senhas Não coincidem')
       setLoading(false)
       return
     }
 
     if (password.length < 6) {
       setError('A senha deve ter pelo menos 6 caracteres')
+      setLoading(false)
+      return
+    }
+
+    if (!acceptedLegal) {
+      setError('Você precisa aceitar os Termos de Uso e a Política de Privacidade.')
       setLoading(false)
       return
     }
@@ -112,7 +124,7 @@ export default function SignUpPage() {
       })
 
       if (signUpError) throw signUpError
-      if (!data.user) throw new Error('Nao foi possivel criar usuario')
+      if (!data.user) throw new Error('Não foi possivel criar usuário')
 
       savePendingProfileSeed({
         userId: data.user.id,
@@ -146,6 +158,13 @@ export default function SignUpPage() {
       }
 
       if (data.session) {
+        await supabase
+          .from('profiles')
+          .update({
+            terms_accepted_at: new Date().toISOString(),
+            privacy_accepted_at: new Date().toISOString(),
+          })
+          .eq('id', data.user.id)
         window.location.href = '/'
         return
       }
@@ -162,7 +181,16 @@ export default function SignUpPage() {
     <div className="min-h-screen bg-gradient-to-br from-[#5BC5A7] to-[#4AB396] flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2">Divide Ai</h1>
+          {showBrandLogo ? (
+            <img
+              src="/logo/divideai-logo.svg"
+              alt="DivideAI"
+              className="h-12 w-auto mx-auto mb-2"
+              onError={() => setShowBrandLogo(false)}
+            />
+          ) : (
+            <h1 className="text-4xl font-bold text-white mb-2">DivideAI</h1>
+          )}
           <p className="text-white/90 text-lg">Divida gastos com facilidade</p>
         </div>
 
@@ -214,7 +242,7 @@ export default function SignUpPage() {
 
             <div>
               <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-2">
-                Nome de usuario
+                Nome de usuário
               </label>
               <div className="relative">
                 <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -240,9 +268,9 @@ export default function SignUpPage() {
                 {checkingUsername
                   ? 'Verificando disponibilidade...'
                   : usernameStatus === 'available'
-                    ? 'Nome de usuario disponivel'
+                    ? 'Nome de usuário disponivel'
                     : usernameStatus === 'taken'
-                      ? 'Nome de usuario indisponivel'
+                      ? 'Nome de usuário indisponivel'
                       : 'Use letras, numeros e underscore'}
               </p>
             </div>
@@ -304,6 +332,42 @@ export default function SignUpPage() {
             >
               {loading ? 'Criando conta...' : 'Criar Conta'}
             </button>
+
+            <div className="rounded-lg border border-gray-200 p-3 bg-gray-50 space-y-2">
+              <button
+                type="button"
+                onClick={() => setLegalModal('terms')}
+                className="text-sm text-[#5BC5A7] underline"
+              >
+                Ler Termos de Uso
+              </button>
+              <button
+                type="button"
+                onClick={() => setLegalModal('privacy')}
+                className="ml-3 text-sm text-[#5BC5A7] underline"
+              >
+                Ler Política de Privacidade
+              </button>
+              <label className="flex items-start gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={acceptedLegal}
+                  disabled={!termsViewed || !privacyViewed}
+                  onChange={(e) => {
+                    if (!termsViewed || !privacyViewed) {
+                      setError('Leia os Termos e a Política antes de aceitar.')
+                      return
+                    }
+                    setAcceptedLegal(e.target.checked)
+                  }}
+                  className="mt-1"
+                />
+                <span>Li e aceito os Termos de Uso e a Política de Privacidade</span>
+              </label>
+              {(!termsViewed || !privacyViewed) && (
+                <p className="text-xs text-gray-500">Você precisa abrir e ler os dois documentos para habilitar o aceite.</p>
+              )}
+            </div>
           </form>
 
           <div className="relative my-6">
@@ -326,9 +390,20 @@ export default function SignUpPage() {
         </div>
 
         <p className="text-center text-white/80 text-sm mt-6">
-          Ao continuar, voce concorda com nossos Termos de Uso
+          Ao continuar, Você concorda com nossos Termos de Uso
         </p>
       </div>
+
+      <LegalDocModal
+        open={legalModal !== null}
+        type={legalModal || 'terms'}
+        onClose={() => setLegalModal(null)}
+        onViewed={() => {
+          if (legalModal === 'terms') setTermsViewed(true)
+          if (legalModal === 'privacy') setPrivacyViewed(true)
+        }}
+      />
     </div>
   )
 }
+

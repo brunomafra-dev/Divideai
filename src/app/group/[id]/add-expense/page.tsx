@@ -107,7 +107,7 @@ export default function AddExpense() {
         const profile = profileMap.get(id)
         return {
           id,
-          name: profile?.username || profile?.full_name || 'Usuario',
+          name: profile?.username || profile?.full_name || 'usuário',
           avatarKey: profile?.avatar_key || '',
           isPremium: Boolean(profile?.is_premium),
         }
@@ -204,7 +204,7 @@ export default function AddExpense() {
     } = await supabase.auth.getUser()
     if (!user) {
       setSaving(false)
-      setFeedback({ type: 'error', text: 'Usuario nao autenticado.' })
+      setFeedback({ type: 'error', text: 'usuário Não autenticado.' })
       return
     }
 
@@ -304,7 +304,7 @@ export default function AddExpense() {
   if (!group) {
     return (
       <div className="min-h-screen bg-[#F7F7F7] flex items-center justify-center">
-        <p className="text-gray-600">Grupo nao encontrado</p>
+        <p className="text-gray-600">Grupo Não encontrado</p>
       </div>
     )
   }
@@ -440,7 +440,7 @@ export default function AddExpense() {
 
           {splitType === 'manual' && (
             <div className="mt-4 space-y-2">
-              <p className="text-xs text-gray-600">Defina o peso de cada participante (0 = nao participa)</p>
+              <p className="text-xs text-gray-600">Defina o peso de cada participante (0 = Não participa)</p>
               {group.participantsList.map((participant) => {
                 const currentWeight = Number(weights[participant.id] ?? (participant.id === payerId ? 1 : 0))
                 return (

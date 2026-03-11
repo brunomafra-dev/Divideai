@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
@@ -38,7 +38,7 @@ export default function ResetPasswordPage() {
     }
 
     if (password !== confirmPassword) {
-      setError('As senhas nao coincidem')
+      setError('As senhas Não coincidem')
       return
     }
 
@@ -50,7 +50,7 @@ export default function ResetPasswordPage() {
 
       if (updateError) throw updateError
 
-      setSuccess('Senha atualizada com sucesso. Voce ja pode entrar com a nova senha.')
+      setSuccess('Senha atualizada com sucesso. Você ja pode entrar com a nova senha.')
     } catch (err: any) {
       setError(err?.message || 'Erro ao atualizar senha')
     } finally {
