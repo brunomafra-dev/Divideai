@@ -1,7 +1,9 @@
 import type { NextConfig } from "next";
 
+const isCapacitorExport = process.env.BUILD_TARGET === "capacitor";
+
 const nextConfig: NextConfig = {
-  output: "export",
+  ...(isCapacitorExport ? { output: "export" } : {}),
   devIndicators: false,
 
   // OK no Next 16
@@ -10,7 +12,7 @@ const nextConfig: NextConfig = {
   },
 
   images: {
-    unoptimized: true,
+    unoptimized: isCapacitorExport,
     remotePatterns: [
       { protocol: "https", hostname: "images.unsplash.com" },
       { protocol: "https", hostname: "unsplash.com" },
