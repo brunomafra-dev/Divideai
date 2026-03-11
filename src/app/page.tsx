@@ -13,6 +13,7 @@ import { fromCents, toCents } from '@/lib/money'
 import { auditDatabaseSecurity, type SecurityAuditReport } from '@/lib/security-audit'
 import { usePremium } from '@/hooks/use-premium'
 import { useAuth } from '@/context/AuthContext'
+import AppBrand from '@/components/app-brand'
 
 interface Member {
   id: string
@@ -343,10 +344,7 @@ export default function Home() {
     <div className="min-h-screen bg-[#F7F7F7] flex flex-col overflow-x-hidden page-fade">
       <header className="bg-white shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <img src="/logo/divideai-icon.png" alt="DivideAI" className="w-6 h-6 object-contain" />
-            <h1 className="text-2xl font-bold text-[#5BC5A7]">DivideAI</h1>
-          </div>
+          <AppBrand />
           <Link href="/profile">
             <div className="cursor-pointer hover:opacity-90 transition-opacity">
               <UserAvatar name={myDisplayName} avatarKey={myAvatarKey} isPremium={myIsPremium} className="w-10 h-10" textClassName="text-xs" />

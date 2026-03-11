@@ -57,32 +57,36 @@ export default function SuggestedSettlements({
 
               return (
                 <div key={`${suggestion.fromUserId}-${suggestion.toUserId}-${suggestion.amountCents}-${index}`} className="rounded-lg border border-gray-200 p-3 bg-gray-50">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
                       <UserAvatar
                         name={fromName}
                         avatarKey={fromProfile?.avatarKey}
                         isPremium={fromProfile?.isPremium}
-                        className="w-8 h-8"
+                        className="w-8 h-8 shrink-0"
                         textClassName="text-xs"
                       />
-                      <span className="text-sm font-medium text-gray-800 truncate">{fromName}</span>
+                      <span className="text-sm font-medium text-gray-800 truncate whitespace-nowrap max-w-[96px] sm:max-w-[140px]">
+                        {fromName}
+                      </span>
                     </div>
 
-                    <span className="text-sm text-gray-500">{'->'}</span>
+                    <span className="text-sm text-gray-500 shrink-0">{'->'}</span>
 
-                    <div className="flex items-center gap-2 min-w-0">
+                    <div className="flex items-center gap-2 min-w-0 flex-1 justify-end">
                       <UserAvatar
                         name={toName}
                         avatarKey={toProfile?.avatarKey}
                         isPremium={toProfile?.isPremium}
-                        className="w-8 h-8"
+                        className="w-8 h-8 shrink-0"
                         textClassName="text-xs"
                       />
-                      <span className="text-sm font-medium text-gray-800 truncate">{toName}</span>
+                      <span className="text-sm font-medium text-gray-800 truncate whitespace-nowrap max-w-[96px] sm:max-w-[140px] text-right">
+                        {toName}
+                      </span>
                     </div>
 
-                    <span className="text-sm font-semibold text-gray-900 whitespace-nowrap">
+                    <span className="text-sm font-semibold text-gray-900 whitespace-nowrap shrink-0 ml-2">
                       R$ {fromCents(suggestion.amountCents).toFixed(2)}
                     </span>
                   </div>

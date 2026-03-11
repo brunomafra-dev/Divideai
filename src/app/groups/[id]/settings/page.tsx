@@ -1,5 +1,10 @@
-﻿import { redirect } from 'next/navigation'
+import ClientPage from './client-page'
 
-export default function LegacyGroupSettingsPage({ params }: { params: { id: string } }) {
-  redirect(`/group/${params.id}/settings`)
+export function generateStaticParams() {
+  return [{ id: 'static' }]
+}
+
+
+export default function Page({ params }: { params: { id: string } }) {
+  return <ClientPage params={params} />
 }

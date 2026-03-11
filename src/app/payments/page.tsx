@@ -779,11 +779,11 @@ export default function Payments() {
                               </p>
                             </div>
 
-                            <div className="mt-3 flex items-center justify-between gap-2">
-                              <p className="text-xs text-gray-500">
+                            <div className="mt-3 flex items-center justify-between gap-3">
+                              <p className="text-xs text-gray-500 flex-1">
                                 {isCreditor ? 'Essa pessoa te deve este valor.' : 'Você deve este valor para essa pessoa.'}
                               </p>
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 shrink-0">
                                 {isCreditor && (
                                   <>
                                     <button
@@ -793,7 +793,7 @@ export default function Payments() {
                                         handleOpenCharge(pending)
                                       }}
                                       disabled={isProcessing}
-                                      className="tap-target touch-friendly pressable px-3 py-2 rounded-lg border border-amber-300 text-amber-700 bg-amber-50 active:bg-amber-100 text-xs font-medium disabled:opacity-60"
+                                      className="tap-target touch-friendly pressable h-9 min-w-[96px] inline-flex items-center justify-center px-3 rounded-lg border border-amber-300 text-amber-700 bg-amber-50 active:bg-amber-100 text-xs font-medium disabled:opacity-60"
                                     >
                                       Cobrar
                                     </button>
@@ -804,7 +804,7 @@ export default function Payments() {
                                         void handleSendReminder(pending)
                                       }}
                                       disabled={isReminding}
-                                      className="tap-target touch-friendly pressable px-3 py-2 rounded-lg border border-gray-300 text-gray-700 bg-white active:bg-gray-100 text-xs font-medium disabled:opacity-60"
+                                      className="tap-target touch-friendly pressable h-9 min-w-[96px] inline-flex items-center justify-center px-3 rounded-lg border border-gray-300 text-gray-700 bg-white active:bg-gray-100 text-xs font-medium disabled:opacity-60"
                                     >
                                       {isReminding ? 'Enviando...' : justSentReminderId === pending.id ? 'Enviado agora' : 'Lembrar'}
                                     </button>
@@ -815,7 +815,7 @@ export default function Payments() {
                                         handleRegisterPayment(pending)
                                       }}
                                       disabled={isProcessing}
-                                      className="tap-target touch-friendly pressable px-3 py-2 rounded-lg bg-[#5BC5A7] active:bg-[#4AB396] text-white text-xs font-semibold disabled:opacity-60"
+                                      className="tap-target touch-friendly pressable h-9 min-w-[132px] inline-flex items-center justify-center px-3 rounded-lg bg-[#5BC5A7] active:bg-[#4AB396] text-white text-xs font-semibold disabled:opacity-60"
                                     >
                                       {isProcessing ? 'Salvando...' : 'Marcar como pago'}
                                     </button>

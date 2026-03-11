@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Eye, EyeOff, Mail, Lock } from 'lucide-react'
+import AppBrand from '@/components/app-brand'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -13,7 +14,6 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [showBrandLogo, setShowBrandLogo] = useState(true)
 
   useEffect(() => {
     const checkSession = async () => {
@@ -64,16 +64,11 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gradient-to-br from-[#5BC5A7] to-[#4AB396] flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          {showBrandLogo ? (
-            <img
-              src="/logo/divideai-logo.svg"
-              alt="DivideAI"
-              className="h-12 w-auto mx-auto mb-2"
-              onError={() => setShowBrandLogo(false)}
-            />
-          ) : (
-            <h1 className="text-4xl font-bold text-white mb-2">DivideAI</h1>
-          )}
+          <AppBrand
+            className="justify-center mb-2"
+            iconClassName="w-6 h-6"
+            textClassName="text-4xl font-bold text-white"
+          />
           <p className="text-white/90 text-lg">Divida gastos com facilidade</p>
         </div>
 
