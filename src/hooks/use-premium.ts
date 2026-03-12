@@ -11,6 +11,7 @@ type DevPremiumOverride = 'true' | 'false' | null
 
 export function usePremium() {
   const { user } = useAuth()
+  const [resolved, setResolved] = useState(false)
   const [dbPremium, setDbPremium] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false
     return window.localStorage.getItem(DB_PREMIUM_KEY) === '1'
@@ -70,17 +71,20 @@ export function usePremium() {
       setDbPremium(nextValue)
       window.localStorage.setItem(DB_PREMIUM_KEY, nextValue ? '1' : '0')
       broadcastPremiumSync()
+      setResolved(true)
     }
 
     if (!user?.id) {
       setDbPremium(false)
       window.localStorage.setItem(DB_PREMIUM_KEY, '0')
       broadcastPremiumSync()
+      setResolved(true)
       return () => {
         mounted = false
       }
     }
 
+    setResolved(false)
     void loadPremium(user.id)
 
     activeChannel = supabase
@@ -139,6 +143,7 @@ export function usePremium() {
 
   return {
     isPremium,
+    premiumResolved: resolved,
     setPremium,
     isDev,
     devPremium,

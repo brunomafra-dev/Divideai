@@ -8,14 +8,15 @@ import { useTheme } from 'next-themes'
 import { usePremium } from '@/hooks/use-premium'
 
 function PremiumThemeGuard() {
-  const { isPremium } = usePremium()
+  const { isPremium, premiumResolved } = usePremium()
   const { resolvedTheme, setTheme } = useTheme()
 
   useEffect(() => {
+    if (!premiumResolved) return
     if (!isPremium && resolvedTheme === 'dark') {
       setTheme('light')
     }
-  }, [isPremium, resolvedTheme, setTheme])
+  }, [isPremium, premiumResolved, resolvedTheme, setTheme])
 
   return null
 }

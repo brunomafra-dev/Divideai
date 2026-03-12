@@ -17,6 +17,16 @@ export default function LoginPage() {
 
   useEffect(() => {
     const checkSession = async () => {
+      if (typeof window !== 'undefined') {
+        const isRecovery =
+          window.location.hash.includes('type=recovery') ||
+          window.location.search.includes('type=recovery')
+        if (isRecovery) {
+          router.replace('/reset-password')
+          return
+        }
+      }
+
       const {
         data: { user },
       } = await supabase.auth.getUser()

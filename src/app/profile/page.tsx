@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, LogOut, User, Mail } from 'lucide-react'
+import { ArrowLeft, LogOut, Mail, Lock, X } from 'lucide-react'
 import Link from 'next/link'
 import { ensureProfileForUser } from '@/lib/profiles'
 import { AVATAR_PRESETS, getAvatarPresetUrl, getDefaultAvatarKey } from '@/lib/avatar-presets'
@@ -20,10 +20,7 @@ interface UserProfile {
 }
 
 function normalizeUsername(raw: string) {
-  return raw
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, '')
+  return raw.trim().toLowerCase().replace(/\s+/g, '')
 }
 
 export default function ProfilePage() {
@@ -33,12 +30,18 @@ export default function ProfilePage() {
   const [fullName, setFullName] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [savingPassword, setSavingPassword] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [avatarKey, setAvatarKey] = useState('')
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmNewPassword, setConfirmNewPassword] = useState('')
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [showPasswordModal, setShowPasswordModal] = useState(false)
 
   useEffect(() => {
-    loadProfile()
+    void loadProfile()
   }, [])
 
   const loadProfile = async () => {
@@ -89,18 +92,18 @@ export default function ProfilePage() {
     const cleanFullName = fullName.trim()
 
     if (!cleanUsername) {
-      setError('Username e obrigatorio')
+      setError('Nome de usuário é obrigatório')
       return
     }
 
     if (!cleanFullName) {
-      setError('Nome completo e obrigatorio')
+      setError('Nome completo é obrigatório')
       return
     }
 
     setSaving(true)
     try {
-      let { data, error: updateError } = await supabase
+      const { data, error: updateError } = await supabase
         .from('profiles')
         .update({
           username: cleanUsername,
@@ -112,51 +115,87 @@ export default function ProfilePage() {
         .single()
 
       if (updateError) {
-        const fallback = await supabase
-          .from('profiles')
-          .update({
-            username: cleanUsername,
-            full_name: cleanFullName,
-          })
-          .eq('id', profile.id)
-          .select('username,full_name,is_premium')
-          .single()
-
-        if (!fallback.error) {
-          data = fallback.data as typeof data
-          updateError = null
-        }
-      }
-
-      if (updateError) {
         const code = String(updateError.code || '')
         if (code === '23505') {
-          setError('Esse username ja esta em uso. Escolha outro.')
+          setError('Esse nome de usuário já está em uso. Escolha outro.')
           return
         }
         setError(updateError.message || 'Erro ao salvar perfil')
         return
       }
 
-      setProfile((prev) => {
-        if (!prev) return prev
-        return {
-          ...prev,
-          username: data.username,
-          full_name: data.full_name,
-          is_premium: Boolean(data.is_premium),
-          avatar_key: String((data as { avatar_key?: string }).avatar_key || ''),
-        }
-      })
+      setProfile((prev) =>
+        prev
+          ? {
+              ...prev,
+              username: data.username,
+              full_name: data.full_name,
+              is_premium: Boolean(data.is_premium),
+              avatar_key: String((data as { avatar_key?: string }).avatar_key || ''),
+            }
+          : prev
+      )
 
       setUsername(data.username)
       setFullName(data.full_name)
       setAvatarKey(String((data as { avatar_key?: string }).avatar_key || ''))
       setSuccess('Perfil atualizado com sucesso')
+      setShowEditModal(false)
     } catch (err: any) {
       setError(err?.message || 'Erro ao salvar perfil')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleChangePassword = async () => {
+    if (!profile?.email) return
+
+    setError('')
+    setSuccess('')
+
+    if (!currentPassword || !newPassword || !confirmNewPassword) {
+      setError('Preencha senha atual, nova senha e confirmação.')
+      return
+    }
+
+    if (newPassword.length < 6) {
+      setError('A nova senha deve ter pelo menos 6 caracteres.')
+      return
+    }
+
+    if (newPassword !== confirmNewPassword) {
+      setError('A confirmação da nova senha não confere.')
+      return
+    }
+
+    setSavingPassword(true)
+    try {
+      const { error: reauthError } = await supabase.auth.signInWithPassword({
+        email: profile.email,
+        password: currentPassword,
+      })
+
+      if (reauthError) {
+        setError('Senha atual inválida.')
+        return
+      }
+
+      const { error: updateError } = await supabase.auth.updateUser({ password: newPassword })
+      if (updateError) {
+        setError(updateError.message || 'Erro ao atualizar senha.')
+        return
+      }
+
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmNewPassword('')
+      setSuccess('Senha atualizada com sucesso.')
+      setShowPasswordModal(false)
+    } catch (err: any) {
+      setError(err?.message || 'Erro ao atualizar senha.')
+    } finally {
+      setSavingPassword(false)
     }
   }
 
@@ -173,7 +212,7 @@ export default function ProfilePage() {
     return (
       <div className="min-h-screen bg-[#F7F7F7] flex items-center justify-center">
         <div className="text-center">
-          <div className="w-12 h-12 border-4 border-[#5BC5A7] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <div className="w-12 h-12 border-4 border-[#5BC5A7] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
           <p className="text-gray-600">Carregando...</p>
         </div>
       </div>
@@ -196,9 +235,14 @@ export default function ProfilePage() {
       <main className="flex-1 overflow-y-auto max-w-4xl w-full mx-auto px-4 py-6 pb-[calc(8rem+env(safe-area-inset-bottom))]">
         <div className="surface-card p-6 mb-6">
           <div className="flex flex-col items-center mb-6">
-            <UserAvatar name={fullName || username} avatarKey={avatarKey} isPremium={Boolean(profile?.is_premium)} className="w-24 h-24 mb-4" textClassName="text-2xl" />
-            <h2 className="text-2xl font-bold text-gray-800 mb-1">{fullName || 'Sem nome'}</h2>
-            <p className="text-[#5BC5A7] text-sm mb-1">@{username || '-'}</p>
+            <UserAvatar
+              name={profile?.full_name || profile?.username || 'Perfil'}
+              avatarKey={avatarKey}
+              isPremium={Boolean(profile?.is_premium)}
+              className="w-24 h-24 mb-4"
+              textClassName="text-2xl"
+            />
+            <p className="text-[#5BC5A7] text-sm mb-1">@{profile?.username || '-'}</p>
             <p className="text-gray-600">{profile?.email}</p>
           </div>
 
@@ -216,66 +260,43 @@ export default function ProfilePage() {
 
           <div className="space-y-3">
             <div className="p-4 bg-gray-50 rounded-lg">
-              <label className="block text-sm text-gray-600 mb-2">Username</label>
-              <input
-                value={username}
-                onChange={(e) => setUsername(normalizeUsername(e.target.value))}
-                className="w-full border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-[#5BC5A7]"
-                placeholder="seu_username"
-              />
+              <p className="text-sm text-gray-600 mb-1">Nome de usuário</p>
+              <p className="font-medium text-gray-800">@{profile?.username || '-'}</p>
             </div>
 
             <div className="p-4 bg-gray-50 rounded-lg">
-              <label className="block text-sm text-gray-600 mb-2">Nome completo</label>
-              <input
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                className="w-full border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-[#5BC5A7]"
-                placeholder="Seu nome completo"
-              />
+              <p className="text-sm text-gray-600 mb-1">Nome completo</p>
+              <p className="font-medium text-gray-800">{profile?.full_name || '-'}</p>
             </div>
 
-            <div className="p-4 bg-gray-50 rounded-lg">
-              <label className="block text-sm text-gray-600 mb-3">Avatar</label>
-              <div className="grid grid-cols-4 gap-3">
-                {AVATAR_PRESETS.map((preset) => (
-                  <button
-                    key={preset.key}
-                    type="button"
-                    onClick={() => setAvatarKey(preset.key)}
-                    className={`pressable p-1.5 rounded-xl border-2 transition-all duration-200 ${avatarKey === preset.key ? 'border-[#5BC5A7] bg-[#5BC5A7]/10 scale-[1.03]' : 'border-transparent hover:border-gray-200'}`}
-                    title={preset.label}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={getAvatarPresetUrl(preset.key) || ''} alt={preset.label} className="w-12 h-12 rounded-full mx-auto" />
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg">
+            <div className="p-4 bg-gray-50 rounded-lg flex items-center gap-3">
               <Mail className="w-5 h-5 text-[#5BC5A7]" />
               <div className="flex-1">
-                <p className="text-sm text-gray-600">E-mail</p>
-                <p className="font-medium text-gray-800">{profile?.email}</p>
+                <p className="text-sm text-gray-600 mb-1">Email</p>
+                <p className="font-medium text-gray-800">{profile?.email || '-'}</p>
               </div>
             </div>
 
-            <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg">
-              <User className="w-5 h-5 text-[#5BC5A7]" />
-              <div className="flex-1">
-                <p className="text-sm text-gray-600">Plano</p>
-                <p className="font-medium text-gray-800">{profile?.is_premium ? 'Premium' : 'Free'}</p>
-              </div>
+            <div className="p-4 bg-gray-50 rounded-lg">
+              <p className="text-sm text-gray-600 mb-1">Plano</p>
+              <p className="font-medium text-gray-800">{profile?.is_premium ? 'Premium' : 'Free'}</p>
             </div>
 
             <button
-              onClick={handleSave}
-              disabled={saving}
-              className="w-full tap-target pressable bg-[#5BC5A7] text-white py-3 rounded-lg font-medium hover:bg-[#4AB396] transition-all disabled:opacity-50"
               type="button"
+              onClick={() => setShowPasswordModal(true)}
+              className="w-full tap-target pressable bg-white border border-gray-300 text-gray-800 py-3 rounded-lg font-medium hover:bg-gray-50 transition-all flex items-center justify-center gap-2"
             >
-              {saving ? 'Salvando...' : 'Salvar perfil'}
+              <Lock className="w-4 h-4" />
+              Alterar senha
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowEditModal(true)}
+              className="w-full tap-target pressable bg-[#5BC5A7] text-white py-3 rounded-lg font-medium hover:bg-[#4AB396] transition-all"
+            >
+              Alterar perfil
             </button>
           </div>
         </div>
@@ -289,6 +310,124 @@ export default function ProfilePage() {
           Sair da conta
         </button>
       </main>
+
+      {showEditModal && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center px-4 pt-4 pb-[calc(6.5rem+env(safe-area-inset-bottom))] sm:p-4">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-xl p-4 space-y-4 max-h-[calc(100dvh-9rem-env(safe-area-inset-bottom))] sm:max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-semibold text-gray-800">Alterar perfil</h3>
+              <button
+                type="button"
+                onClick={() => setShowEditModal(false)}
+                className="tap-target touch-friendly pressable text-gray-500 active:text-gray-700"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm text-gray-600 mb-2">Nome de usuário</label>
+                <input
+                  value={username}
+                  onChange={(e) => setUsername(normalizeUsername(e.target.value))}
+                  className="w-full border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-[#5BC5A7]"
+                  placeholder="seu_username"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-2">Nome completo</label>
+                <input
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  className="w-full border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-[#5BC5A7]"
+                  placeholder="Seu nome completo"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-600 mb-3">Avatar</label>
+                <div className="grid grid-cols-4 gap-3">
+                  {AVATAR_PRESETS.map((preset) => (
+                    <button
+                      key={preset.key}
+                      type="button"
+                      onClick={() => setAvatarKey(preset.key)}
+                      className={`pressable p-1.5 rounded-xl border-2 transition-all duration-200 ${
+                        avatarKey === preset.key ? 'border-[#5BC5A7] bg-[#5BC5A7]/10 scale-[1.03]' : 'border-transparent hover:border-gray-200'
+                      }`}
+                      title={preset.label}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={getAvatarPresetUrl(preset.key) || ''} alt={preset.label} className="w-12 h-12 rounded-full mx-auto" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="w-full tap-target pressable bg-[#5BC5A7] text-white py-3 rounded-lg font-medium hover:bg-[#4AB396] transition-all disabled:opacity-50"
+              type="button"
+            >
+              {saving ? 'Salvando...' : 'Salvar alterações'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showPasswordModal && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center px-4 pt-4 pb-[calc(6.5rem+env(safe-area-inset-bottom))] sm:p-4">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-xl p-4 space-y-4 max-h-[calc(100dvh-9rem-env(safe-area-inset-bottom))] sm:max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-semibold text-gray-800">Alterar senha</h3>
+              <button
+                type="button"
+                onClick={() => setShowPasswordModal(false)}
+                className="tap-target touch-friendly pressable text-gray-500 active:text-gray-700"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <input
+                type="password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                className="w-full border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-[#5BC5A7]"
+                placeholder="Senha atual"
+              />
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="w-full border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-[#5BC5A7]"
+                placeholder="Nova senha"
+              />
+              <input
+                type="password"
+                value={confirmNewPassword}
+                onChange={(e) => setConfirmNewPassword(e.target.value)}
+                className="w-full border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-[#5BC5A7]"
+                placeholder="Confirmar nova senha"
+              />
+            </div>
+
+            <button
+              onClick={handleChangePassword}
+              disabled={savingPassword}
+              className="w-full tap-target pressable bg-gray-900 text-white py-2.5 rounded-lg font-medium hover:bg-gray-800 transition-all disabled:opacity-50"
+              type="button"
+            >
+              {savingPassword ? 'Atualizando...' : 'Atualizar senha'}
+            </button>
+          </div>
+        </div>
+      )}
+
       <BottomNav />
     </div>
   )

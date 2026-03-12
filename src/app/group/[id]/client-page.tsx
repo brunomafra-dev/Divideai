@@ -48,6 +48,7 @@ interface PaymentRow {
   from_user: string
   to_user: string
   amount: number
+  created_at?: string
 }
 interface ParticipantUserRow {
   user_id: string
@@ -264,7 +265,7 @@ export default function GroupPage() {
 
     const { data: payRows, error: payError } = await supabase
       .from('payments')
-      .select('group_id,from_user,to_user,amount')
+      .select('group_id,from_user,to_user,amount,created_at')
       .eq('group_id', groupId)
 
     if (payError) {
@@ -341,6 +342,7 @@ export default function GroupPage() {
         from_user: p.from_user,
         to_user: p.to_user,
         amount: Number(p.amount) || 0,
+        created_at: p.created_at,
       }))
     )
     const balances = buildBalancesFromEdges(pendingEdges)

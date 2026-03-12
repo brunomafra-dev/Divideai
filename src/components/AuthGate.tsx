@@ -14,14 +14,22 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
   const isInviteRoute = pathname.startsWith('/invite/')
   const isLegalPublicRoute = pathname === '/privacy' || pathname === '/terms'
+  const isResetPasswordRoute = pathname === '/reset-password'
   const isAuthRoute =
     pathname === '/login' ||
     pathname === '/signup' ||
     pathname === '/register' ||
-    pathname === '/forgot-password' ||
-    pathname === '/reset-password'
+    pathname === '/forgot-password'
   const isLegalConsentRoute = pathname === '/legal-consent'
-  const isPublicRoute = isAuthRoute || isInviteRoute || isLegalPublicRoute
+  const isPublicRoute = isAuthRoute || isInviteRoute || isLegalPublicRoute || isResetPasswordRoute
+  const [isRecoveryFlow, setIsRecoveryFlow] = useState(false)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const fromHash = window.location.hash.includes('type=recovery')
+    const fromQuery = window.location.search.includes('type=recovery')
+    setIsRecoveryFlow(fromHash || fromQuery)
+  }, [pathname])
 
   useEffect(() => {
     const run = async () => {
@@ -46,7 +54,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     }
 
     run()
-  }, [loading, user?.id])
+  }, [loading, user?.id, pathname])
 
   useEffect(() => {
     if (loading || legalLoading) return
@@ -56,15 +64,20 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       return
     }
 
-    if (user && needsLegalConsent && !isLegalConsentRoute) {
+    if (user && needsLegalConsent && !isLegalConsentRoute && !isResetPasswordRoute) {
       router.replace('/legal-consent')
       return
     }
 
-    if (user && isAuthRoute && !needsLegalConsent) {
+    if (user && isRecoveryFlow && !isResetPasswordRoute) {
+      router.replace('/reset-password')
+      return
+    }
+
+    if (user && isAuthRoute && !needsLegalConsent && !isRecoveryFlow) {
       router.replace('/')
     }
-  }, [user, loading, legalLoading, needsLegalConsent, isPublicRoute, isAuthRoute, isLegalConsentRoute, router])
+  }, [user, loading, legalLoading, needsLegalConsent, isPublicRoute, isAuthRoute, isLegalConsentRoute, isRecoveryFlow, isResetPasswordRoute, router])
 
   if (loading || legalLoading) {
     return (

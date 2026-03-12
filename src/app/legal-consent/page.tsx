@@ -4,11 +4,11 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import LegalDocModal from '@/components/legal-doc-modal'
+import { useAuth } from '@/context/AuthContext'
 
 export default function LegalConsentPage() {
   const router = useRouter()
-  const [termsViewed, setTermsViewed] = useState(false)
-  const [privacyViewed, setPrivacyViewed] = useState(false)
+  const { user } = useAuth()
   const [accepted, setAccepted] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -21,6 +21,11 @@ export default function LegalConsentPage() {
       return
     }
 
+    if (!user?.id) {
+      setError('Sessão inválida. Faça login novamente.')
+      return
+    }
+
     setLoading(true)
     const { error: updateError } = await supabase
       .from('profiles')
@@ -28,7 +33,7 @@ export default function LegalConsentPage() {
         terms_accepted_at: new Date().toISOString(),
         privacy_accepted_at: new Date().toISOString(),
       })
-      .eq('id', (await supabase.auth.getUser()).data.user?.id || '')
+      .eq('id', user.id)
 
     if (updateError) {
       setError('Erro ao registrar aceite. Tente novamente.')
@@ -37,34 +42,28 @@ export default function LegalConsentPage() {
     }
 
     router.replace('/')
+    router.refresh()
   }
 
   return (
     <div className="min-h-screen bg-[#F7F7F7] flex items-center justify-center px-4">
       <div className="surface-card w-full max-w-md p-6 space-y-4">
         <h1 className="text-xl font-semibold text-gray-800">Aceite obrigatório</h1>
-        <p className="text-sm text-gray-600">Para continuar usando o DivideAI, leia e aceite os documentos legais.</p>
+        <p className="text-sm text-gray-600">Para continuar usando o DivideAI, aceite os documentos legais.</p>
 
         <div className="rounded-lg border border-gray-200 p-3 bg-gray-50 space-y-2">
           <button type="button" onClick={() => setLegalModal('terms')} className="text-sm text-[#5BC5A7] underline">
-            Ler Termos de Uso
+            Ver Termos de Uso
           </button>
           <button type="button" onClick={() => setLegalModal('privacy')} className="ml-3 text-sm text-[#5BC5A7] underline">
-            Ler Política de Privacidade
+            Ver Política de Privacidade
           </button>
 
           <label className="flex items-start gap-2 text-sm text-gray-700">
             <input
               type="checkbox"
               checked={accepted}
-              disabled={!termsViewed || !privacyViewed}
-              onChange={(e) => {
-                if (!termsViewed || !privacyViewed) {
-                  setError('Leia os dois documentos antes de aceitar.')
-                  return
-                }
-                setAccepted(e.target.checked)
-              }}
+              onChange={(e) => setAccepted(e.target.checked)}
               className="mt-1"
             />
             <span>Li e aceito os Termos de Uso e a Política de Privacidade</span>
@@ -79,7 +78,7 @@ export default function LegalConsentPage() {
           disabled={loading}
           className="w-full tap-target touch-friendly pressable bg-[#5BC5A7] text-white py-2.5 rounded-lg font-medium active:bg-[#4AB396] disabled:opacity-60"
         >
-          {loading ? 'Salvando...' : 'Continuar'}
+          {loading ? 'Salvando...' : 'OK'}
         </button>
       </div>
 
@@ -87,10 +86,7 @@ export default function LegalConsentPage() {
         open={legalModal !== null}
         type={legalModal || 'terms'}
         onClose={() => setLegalModal(null)}
-        onViewed={() => {
-          if (legalModal === 'terms') setTermsViewed(true)
-          if (legalModal === 'privacy') setPrivacyViewed(true)
-        }}
+        onViewed={() => {}}
       />
     </div>
   )
