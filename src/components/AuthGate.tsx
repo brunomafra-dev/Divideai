@@ -4,12 +4,13 @@ import { useAuth } from '@/context/AuthContext'
 import { supabase } from '@/lib/supabase'
 import { useRouter, usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import { hasLocalLegalConsent, setLocalLegalConsent } from '@/lib/legal-consent'
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
-  const [legalLoading, setLegalLoading] = useState(true)
+  const [legalLoading, setLegalLoading] = useState(false)
   const [needsLegalConsent, setNeedsLegalConsent] = useState(false)
 
   const isInviteRoute = pathname.startsWith('/invite/')
@@ -40,21 +41,40 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
         return
       }
 
+      if (hasLocalLegalConsent(user.id)) {
+        setNeedsLegalConsent(false)
+        setLegalLoading(false)
+        return
+      }
+
       setLegalLoading(true)
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('profiles')
         .select('terms_accepted_at,privacy_accepted_at')
         .eq('id', user.id)
         .maybeSingle()
 
+      if (error) {
+        console.error('authgate.legal-check-error', {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+        })
+      }
+
       const hasTerms = Boolean(data?.terms_accepted_at)
       const hasPrivacy = Boolean(data?.privacy_accepted_at)
-      setNeedsLegalConsent(!(hasTerms && hasPrivacy))
+      const accepted = hasTerms && hasPrivacy
+      if (accepted) {
+        setLocalLegalConsent(user.id, true)
+      }
+      setNeedsLegalConsent(!accepted)
       setLegalLoading(false)
     }
 
-    run()
-  }, [loading, user?.id, pathname])
+    void run()
+  }, [loading, user?.id])
 
   useEffect(() => {
     if (loading || legalLoading) return

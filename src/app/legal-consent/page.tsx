@@ -1,10 +1,11 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import LegalDocModal from '@/components/legal-doc-modal'
 import { useAuth } from '@/context/AuthContext'
+import { setLocalLegalConsent } from '@/lib/legal-consent'
 
 export default function LegalConsentPage() {
   const router = useRouter()
@@ -16,6 +17,7 @@ export default function LegalConsentPage() {
 
   const handleContinue = async () => {
     setError('')
+
     if (!accepted) {
       setError('Você precisa aceitar os Termos de Uso e a Política de Privacidade para continuar.')
       return
@@ -27,6 +29,8 @@ export default function LegalConsentPage() {
     }
 
     setLoading(true)
+    setLocalLegalConsent(user.id, true)
+
     const { error: updateError } = await supabase
       .from('profiles')
       .update({
@@ -36,9 +40,12 @@ export default function LegalConsentPage() {
       .eq('id', user.id)
 
     if (updateError) {
-      setError('Erro ao registrar aceite. Tente novamente.')
-      setLoading(false)
-      return
+      console.error('legal-consent.update-error', {
+        code: updateError.code,
+        message: updateError.message,
+        details: updateError.details,
+        hint: updateError.hint,
+      })
     }
 
     router.replace('/')
