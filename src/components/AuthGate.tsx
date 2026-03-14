@@ -101,8 +101,8 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
   if (loading || legalLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-[#5BC5A7] to-[#4AB396] flex items-center justify-center">
-        <div className="text-white text-lg">Carregando...</div>
+      <div className="min-h-screen bg-[#F7F7F7] dark:bg-neutral-950 flex items-center justify-center">
+        <div className="h-8 w-8 rounded-full border-2 border-gray-300 border-t-[#5BC5A7] animate-spin" aria-label="Carregando" />
       </div>
     )
   }

@@ -116,31 +116,45 @@ type DebtBreakdownTarget = {
   debtorIsPremium?: boolean
 }
 
+type GroupPageCacheEntry = {
+  group: Group | null
+  report: GroupReport | null
+  isOwner: boolean
+  showMyBalance: boolean
+  suggestedSettlements: SimplifiedPayment[]
+  personBalances: PersonBalanceRow[]
+  auditReport: FinancialAuditReport
+  currentUserId: string | null
+}
+
+const groupPageCache = new Map<string, GroupPageCacheEntry>()
+
 export default function GroupPage() {
   const params = useParams()
   const router = useRouter()
   const groupId = params.id as string
+  const cachedView = groupPageCache.get(groupId)
 
-  const [group, setGroup] = useState<Group | null>(null)
+  const [group, setGroup] = useState<Group | null>(() => cachedView?.group ?? null)
   const [authLoading, setAuthLoading] = useState(true)
-  const [loading, setLoading] = useState(true)
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [loading, setLoading] = useState(() => !cachedView)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(() => cachedView?.currentUserId ?? null)
   const [inviteLoading, setInviteLoading] = useState(false)
   const [inviteLink, setInviteLink] = useState('')
   const [showParticipantModal, setShowParticipantModal] = useState(false)
   const [manualParticipantName, setManualParticipantName] = useState('')
   const [canNativeShare, setCanNativeShare] = useState(false)
-  const [isOwner, setIsOwner] = useState(false)
-  const [showMyBalance, setShowMyBalance] = useState(true)
+  const [isOwner, setIsOwner] = useState(() => cachedView?.isOwner ?? false)
+  const [showMyBalance, setShowMyBalance] = useState(() => cachedView?.showMyBalance ?? true)
   const { isPremium } = usePremium()
-  const [report, setReport] = useState<GroupReport | null>(null)
+  const [report, setReport] = useState<GroupReport | null>(() => cachedView?.report ?? null)
   const [reportFeedback, setReportFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [isReportExpanded, setIsReportExpanded] = useState(false)
-  const [suggestedSettlements, setSuggestedSettlements] = useState<SimplifiedPayment[]>([])
+  const [suggestedSettlements, setSuggestedSettlements] = useState<SimplifiedPayment[]>(() => cachedView?.suggestedSettlements ?? [])
   const [registeringSuggestedSettlements, setRegisteringSuggestedSettlements] = useState(false)
-  const [personBalances, setPersonBalances] = useState<PersonBalanceRow[]>([])
+  const [personBalances, setPersonBalances] = useState<PersonBalanceRow[]>(() => cachedView?.personBalances ?? [])
   const [debtBreakdownTarget, setDebtBreakdownTarget] = useState<DebtBreakdownTarget | null>(null)
-  const [auditReport, setAuditReport] = useState<FinancialAuditReport>({ valid: true, issues: [] })
+  const [auditReport, setAuditReport] = useState<FinancialAuditReport>(() => cachedView?.auditReport ?? { valid: true, issues: [] })
   const [showAuditIssues, setShowAuditIssues] = useState(false)
   const [deletingExpenseId, setDeletingExpenseId] = useState<string | null>(null)
   const isMountedRef = useRef(true)
@@ -151,7 +165,9 @@ export default function GroupPage() {
       return
     }
 
-    setLoading(true)
+    if (!groupPageCache.get(groupId)) {
+      setLoading(true)
+    }
 
     const groupSelectCandidates = [
       'id,name,category,owner_id',
@@ -483,7 +499,7 @@ export default function GroupPage() {
 
     if (!isMountedRef.current) return
 
-    setGroup({
+    const groupData: Group = {
       id: groupRow.id,
       name: groupRow.name,
       category: String((groupRow as { category?: string }).category || 'other'),
@@ -492,12 +508,24 @@ export default function GroupPage() {
       participants: participantsList.length,
       participantsList,
       transactions,
-    })
+    }
+    const ownerFlag = String(myRoleRow?.role || '') === 'owner'
+    setGroup(groupData)
     setReport(groupReport)
-    setIsOwner(String(myRoleRow?.role || '') === 'owner')
+    setIsOwner(ownerFlag)
     setSuggestedSettlements(simplified)
     setPersonBalances(balancesByPerson)
     setAuditReport(audit)
+    groupPageCache.set(groupId, {
+      group: groupData,
+      report: groupReport,
+      isOwner: ownerFlag,
+      showMyBalance: Boolean(myProfile?.privacy_show_balance ?? true),
+      suggestedSettlements: simplified,
+      personBalances: balancesByPerson,
+      auditReport: audit,
+      currentUserId,
+    })
     if (audit.valid) setShowAuditIssues(false)
 
     setLoading(false)
@@ -867,7 +895,7 @@ export default function GroupPage() {
     }
   }, [currentUserId, groupId, loadGroup])
 
-  if (authLoading || loading) {
+  if ((authLoading && !group) || (loading && !group)) {
     return (
       <div className="min-h-screen bg-[#F7F7F7] flex items-center justify-center">
         <p className="text-gray-600">Carregando...</p>

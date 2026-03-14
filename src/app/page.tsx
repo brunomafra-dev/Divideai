@@ -61,20 +61,33 @@ interface GroupUI {
   members?: Member[]
 }
 
+type HomeViewCache = {
+  groups: GroupUI[]
+  totalBalance: number
+  showMyBalance: boolean
+  myAvatarKey: string
+  myDisplayName: string
+  myIsPremium: boolean
+  totalToReceive: number
+  totalToPay: number
+}
+
+let homeViewCache: HomeViewCache | null = null
+
 export default function Home() {
   const router = useRouter()
   const { isPremium } = usePremium()
   const { user, loading: authLoading } = useAuth()
-  const [groups, setGroups] = useState<GroupUI[]>([])
-  const [totalBalance, setTotalBalance] = useState(0)
-  const [loading, setLoading] = useState(true)
-  const hasLoadedOnceRef = useRef(false)
-  const [showMyBalance, setShowMyBalance] = useState(true)
-  const [myAvatarKey, setMyAvatarKey] = useState('')
-  const [myDisplayName, setMyDisplayName] = useState('Perfil')
-  const [myIsPremium, setMyIsPremium] = useState(false)
-  const [totalToReceive, setTotalToReceive] = useState(0)
-  const [totalToPay, setTotalToPay] = useState(0)
+  const [groups, setGroups] = useState<GroupUI[]>(() => homeViewCache?.groups || [])
+  const [totalBalance, setTotalBalance] = useState(() => homeViewCache?.totalBalance || 0)
+  const [loading, setLoading] = useState(() => !homeViewCache)
+  const hasLoadedOnceRef = useRef(Boolean(homeViewCache))
+  const [showMyBalance, setShowMyBalance] = useState(() => homeViewCache?.showMyBalance ?? true)
+  const [myAvatarKey, setMyAvatarKey] = useState(() => homeViewCache?.myAvatarKey || '')
+  const [myDisplayName, setMyDisplayName] = useState(() => homeViewCache?.myDisplayName || 'Perfil')
+  const [myIsPremium, setMyIsPremium] = useState(() => homeViewCache?.myIsPremium ?? false)
+  const [totalToReceive, setTotalToReceive] = useState(() => homeViewCache?.totalToReceive || 0)
+  const [totalToPay, setTotalToPay] = useState(() => homeViewCache?.totalToPay || 0)
   const [securityReport, setSecurityReport] = useState<SecurityAuditReport | null>(null)
   const [showSecurityIssues, setShowSecurityIssues] = useState(false)
   const securityAuditRanRef = useRef(false)
@@ -275,8 +288,20 @@ export default function Home() {
         const normalizedGlobal = globalCents === 0 ? 0 : fromCents(globalCents)
         setGroups(uiGroups)
         setTotalBalance(normalizedGlobal)
-        setTotalToReceive(fromCents(receiveTotalCents))
-        setTotalToPay(fromCents(payTotalCents))
+        const nextToReceive = fromCents(receiveTotalCents)
+        const nextToPay = fromCents(payTotalCents)
+        setTotalToReceive(nextToReceive)
+        setTotalToPay(nextToPay)
+        homeViewCache = {
+          groups: uiGroups,
+          totalBalance: normalizedGlobal,
+          showMyBalance: Boolean(myProfile?.privacy_show_balance ?? true),
+          myAvatarKey: String(myProfile?.avatar_key || ''),
+          myDisplayName: String(myProfile?.username || myProfile?.full_name || 'Perfil'),
+          myIsPremium: Boolean(myProfile?.is_premium),
+          totalToReceive: nextToReceive,
+          totalToPay: nextToPay,
+        }
       } catch (error) {
         console.error('home.load-unhandled-error', error)
         setGroups([])
@@ -294,7 +319,7 @@ export default function Home() {
       }
     }
 
-    run(true)
+    void run(!homeViewCache)
 
     const channel = supabase
       .channel('home-realtime')

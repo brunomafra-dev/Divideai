@@ -75,23 +75,33 @@ interface PersonPendingSummary {
   totalAmount: number
 }
 
+type PaymentsViewCache = {
+  payments: Payment[]
+  myId: string | null
+  showMyBalance: boolean
+  myPixKey: string
+  lastReminderByPair: Map<string, string>
+}
+
+let paymentsViewCache: PaymentsViewCache | null = null
+
 export default function Payments() {
   const router = useRouter()
   const { isPremium } = usePremium()
   const { user, loading: authLoading } = useAuth()
 
-  const [payments, setPayments] = useState<Payment[]>([])
+  const [payments, setPayments] = useState<Payment[]>(() => paymentsViewCache?.payments || [])
   const [filter, setFilter] = useState<'all' | 'paid' | 'pending'>('all')
-  const [loading, setLoading] = useState(true)
-  const hasLoadedOnceRef = useRef(false)
+  const [loading, setLoading] = useState(() => !paymentsViewCache)
+  const hasLoadedOnceRef = useRef(Boolean(paymentsViewCache))
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
-  const [myId, setMyId] = useState<string | null>(null)
-  const [showMyBalance, setShowMyBalance] = useState(true)
+  const [myId, setMyId] = useState<string | null>(() => paymentsViewCache?.myId ?? null)
+  const [showMyBalance, setShowMyBalance] = useState(() => paymentsViewCache?.showMyBalance ?? true)
   const [processingPaymentId, setProcessingPaymentId] = useState<string | null>(null)
   const [processingReminderId, setProcessingReminderId] = useState<string | null>(null)
   const [justSentReminderId, setJustSentReminderId] = useState<string | null>(null)
-  const [lastReminderByPair, setLastReminderByPair] = useState<Map<string, string>>(new Map())
-  const [myPixKey, setMyPixKey] = useState('')
+  const [lastReminderByPair, setLastReminderByPair] = useState<Map<string, string>>(() => paymentsViewCache?.lastReminderByPair ?? new Map())
+  const [myPixKey, setMyPixKey] = useState(() => paymentsViewCache?.myPixKey || '')
   const [chargeTarget, setChargeTarget] = useState<Payment | null>(null)
   const [chargePixKey, setChargePixKey] = useState('')
   const [detailTarget, setDetailTarget] = useState<Payment | null>(null)
@@ -297,6 +307,13 @@ export default function Payments() {
         }
       }
       setLastReminderByPair(reminderMap)
+      paymentsViewCache = {
+        payments: merged,
+        myId: currentUserId,
+        showMyBalance: Boolean(myProfile?.privacy_show_balance ?? true),
+        myPixKey: String((myPaymentSettings as { pix_key?: string } | null)?.pix_key || ''),
+        lastReminderByPair: reminderMap,
+      }
     } catch (error) {
       console.error('payments.load-unhandled-error', error)
       setPayments([])
@@ -319,7 +336,7 @@ export default function Payments() {
       return
     }
 
-    void load(user.id, true)
+    void load(user.id, !paymentsViewCache)
 
     const channel = supabase
       .channel('payments-realtime')

@@ -9,6 +9,7 @@ import BottomNav from '@/components/ui/bottom-nav'
 import { fetchGroupMembersMap, type GroupMember } from '@/lib/group-members'
 import UserAvatar from '@/components/user-avatar'
 import { usePremium } from '@/hooks/use-premium'
+import { useAuth } from '@/context/AuthContext'
 
 type GroupRow = {
   id: string
@@ -43,6 +44,16 @@ type ActivityItem = {
   actorIsPremium?: boolean
 }
 
+type ActivityViewCache = {
+  myId: string | null
+  groups: GroupRow[]
+  membersByGroup: Map<string, GroupMember[]>
+  transactions: TransactionRow[]
+  payments: PaymentRow[]
+}
+
+let activityViewCache: ActivityViewCache | null = null
+
 function formatBRL(n: number) {
   return `R$ ${n.toFixed(2).replace('.', ',')}`
 }
@@ -67,95 +78,124 @@ function timeAgo(dateStr: string) {
 export default function Activity() {
   const router = useRouter()
   const { isPremium } = usePremium()
-  const [loading, setLoading] = useState(true)
-  const [myId, setMyId] = useState<string | null>(null)
-  const [groups, setGroups] = useState<GroupRow[]>([])
-  const [membersByGroup, setMembersByGroup] = useState<Map<string, GroupMember[]>>(new Map())
-  const [transactions, setTransactions] = useState<TransactionRow[]>([])
-  const [payments, setPayments] = useState<PaymentRow[]>([])
-  const hasLoadedOnceRef = useRef(false)
+  const { user, loading: authLoading } = useAuth()
+  const [loading, setLoading] = useState(() => !activityViewCache)
+  const [myId, setMyId] = useState<string | null>(() => activityViewCache?.myId ?? null)
+  const [groups, setGroups] = useState<GroupRow[]>(() => activityViewCache?.groups ?? [])
+  const [membersByGroup, setMembersByGroup] = useState<Map<string, GroupMember[]>>(
+    () => activityViewCache?.membersByGroup ?? new Map()
+  )
+  const [transactions, setTransactions] = useState<TransactionRow[]>(() => activityViewCache?.transactions ?? [])
+  const [payments, setPayments] = useState<PaymentRow[]>(() => activityViewCache?.payments ?? [])
+  const hasLoadedOnceRef = useRef(Boolean(activityViewCache))
+  const runInFlightRef = useRef(false)
+  const rerunRequestedRef = useRef(false)
 
-  const run = useCallback(async (showBlockingLoading: boolean = false) => {
+  const run = useCallback(async (currentUserId: string, showBlockingLoading: boolean = false) => {
+      if (runInFlightRef.current) {
+        rerunRequestedRef.current = true
+        return
+      }
+      runInFlightRef.current = true
       if (showBlockingLoading || !hasLoadedOnceRef.current) {
         setLoading(true)
       }
+      try {
+      setMyId(currentUserId)
 
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
+      const [groupsResp, txResp, payResp] = await Promise.all([
+        supabase.from('groups').select('id,name'),
+        supabase
+          .from('transactions')
+          .select('id,group_id,value,payer_id,created_at')
+          .order('created_at', { ascending: false })
+          .limit(30),
+        supabase
+          .from('payments')
+          .select('id,group_id,from_user,to_user,amount,created_at')
+          .order('created_at', { ascending: false })
+          .limit(30),
+      ])
 
-      if (!session) {
-        setLoading(false)
-        router.replace('/login')
-        return
-      }
-
-      setMyId(session.user.id)
-
-      const { data: g } = await supabase.from('groups').select('id,name')
-      const safeGroups = ((g as GroupRow[] | null) ?? [])
+      const safeGroups = ((groupsResp.data as GroupRow[] | null) ?? [])
       setGroups(safeGroups)
 
       try {
-        const membersMap = await fetchGroupMembersMap(safeGroups.map((group) => group.id), session.user.id)
+        const membersMap = await fetchGroupMembersMap(safeGroups.map((group) => group.id), currentUserId)
         setMembersByGroup(membersMap)
       } catch (error) {
         console.error('activity.members-load-error', error)
         setMembersByGroup(new Map())
       }
 
-      const { data: t } = await supabase
-        .from('transactions')
-        .select('id,group_id,value,payer_id,created_at')
-        .order('created_at', { ascending: false })
-        .limit(30)
-
       setTransactions(
-        (((t as TransactionRow[] | null) ?? []).map((x) => ({
+        (((txResp.data as TransactionRow[] | null) ?? []).map((x) => ({
           ...x,
           value: Number(x.value) || 0,
         })))
       )
 
-      const { data: p } = await supabase
-        .from('payments')
-        .select('id,group_id,from_user,to_user,amount,created_at')
-        .order('created_at', { ascending: false })
-        .limit(30)
-
       setPayments(
-        (((p as PaymentRow[] | null) ?? []).map((x) => ({
+        (((payResp.data as PaymentRow[] | null) ?? []).map((x) => ({
           ...x,
           amount: Number(x.amount) || 0,
         })))
       )
 
+      activityViewCache = {
+        myId: currentUserId,
+        groups: safeGroups,
+        membersByGroup,
+        transactions: (((txResp.data as TransactionRow[] | null) ?? []).map((x) => ({
+          ...x,
+          value: Number(x.value) || 0,
+        }))),
+        payments: (((payResp.data as PaymentRow[] | null) ?? []).map((x) => ({
+          ...x,
+          amount: Number(x.amount) || 0,
+        }))),
+      }
+      } catch (error) {
+        console.error('activity.load-unhandled-error', error)
+      } finally {
+      runInFlightRef.current = false
       hasLoadedOnceRef.current = true
       setLoading(false)
-  }, [router])
+      if (rerunRequestedRef.current) {
+        rerunRequestedRef.current = false
+        void run(currentUserId, false)
+      }
+      }
+  }, [])
 
   useEffect(() => {
-    run(true)
+    if (authLoading) return
+    if (!user?.id) {
+      router.replace('/login')
+      return
+    }
+
+    void run(user.id, !activityViewCache)
 
     const channel = supabase
       .channel('activity-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => {
-        run(false)
+        void run(user.id, false)
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, () => {
-        run(false)
+        void run(user.id, false)
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'participants' }, () => {
-        run(false)
+        void run(user.id, false)
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'groups' }, () => {
-        run(false)
+        void run(user.id, false)
       })
       .subscribe()
 
-    const onFocus = () => run(false)
+    const onFocus = () => void run(user.id, false)
     const onVisibility = () => {
-      if (document.visibilityState === 'visible') run(false)
+      if (document.visibilityState === 'visible') void run(user.id, false)
     }
     window.addEventListener('focus', onFocus)
     document.addEventListener('visibilitychange', onVisibility)
@@ -165,7 +205,7 @@ export default function Activity() {
       window.removeEventListener('focus', onFocus)
       document.removeEventListener('visibilitychange', onVisibility)
     }
-  }, [run])
+  }, [authLoading, router, run, user?.id])
 
   const groupMap = useMemo(() => {
     const m = new Map<string, GroupRow>()
@@ -242,7 +282,7 @@ export default function Activity() {
     return items.slice(0, 30)
   }, [transactions, payments, groupMap, membersByGroup, myId])
 
-  if (loading) {
+  if (loading && activities.length === 0) {
     return (
       <div className="min-h-screen bg-[#F7F7F7] flex items-center justify-center">
         <div className="text-gray-600 text-lg">Carregando...</div>
