@@ -15,6 +15,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
   const isInviteRoute = pathname.startsWith('/invite/')
   const isLegalPublicRoute = pathname === '/privacy' || pathname === '/terms'
+  const isMarketingRoute = pathname === '/' || pathname === '/download' || pathname === '/ios' || pathname === '/android'
   const isResetPasswordRoute = pathname === '/reset-password'
   const isAuthRoute =
     pathname === '/login' ||
@@ -22,7 +23,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     pathname === '/register' ||
     pathname === '/forgot-password'
   const isLegalConsentRoute = pathname === '/legal-consent'
-  const isPublicRoute = isAuthRoute || isInviteRoute || isLegalPublicRoute || isResetPasswordRoute
+  const isPublicRoute = isAuthRoute || isInviteRoute || isLegalPublicRoute || isMarketingRoute || isResetPasswordRoute
   const [isRecoveryFlow, setIsRecoveryFlow] = useState(false)
 
   useEffect(() => {

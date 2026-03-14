@@ -14,6 +14,7 @@ import { auditDatabaseSecurity, type SecurityAuditReport } from '@/lib/security-
 import { usePremium } from '@/hooks/use-premium'
 import { useAuth } from '@/context/AuthContext'
 import AppBrand from '@/components/app-brand'
+import LandingPage from '@/components/marketing/landing-page'
 
 interface Member {
   id: string
@@ -140,7 +141,7 @@ export default function Home() {
       }
       try {
         if (!user?.id) {
-          router.replace('/login')
+          setLoading(false)
           return
         }
 
@@ -356,6 +357,10 @@ export default function Home() {
       document.removeEventListener('visibilitychange', onVisibilityChange)
     }
   }, [authLoading, router, user?.id])
+
+  if (!authLoading && !user) {
+    return <LandingPage />
+  }
 
   if (loading) {
     return (

@@ -240,3 +240,19 @@
     transform: translateY(0);
   }
 }
+
+@keyframes floatSoft {
+  0% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+  100% {
+    transform: translateY(0px);
+  }
+}
+
+.float-soft {
+  animation: floatSoft 4.5s ease-in-out infinite;
+}
