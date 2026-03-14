@@ -10,7 +10,7 @@ const PREMIUM_SYNC_EVENT = 'divideai:premium-sync'
 type DevPremiumOverride = 'true' | 'false' | null
 
 export function usePremium() {
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const [resolved, setResolved] = useState(false)
   const [dbPremium, setDbPremium] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false
@@ -74,6 +74,12 @@ export function usePremium() {
       setResolved(true)
     }
 
+    if (authLoading) {
+      return () => {
+        mounted = false
+      }
+    }
+
     if (!user?.id) {
       setDbPremium(false)
       window.localStorage.setItem(DB_PREMIUM_KEY, '0')
@@ -104,7 +110,7 @@ export function usePremium() {
         supabase.removeChannel(activeChannel)
       }
     }
-  }, [broadcastPremiumSync, user?.id])
+  }, [authLoading, broadcastPremiumSync, user?.id])
 
   const setPremium = useCallback(async (nextValue: boolean) => {
     if (!user?.id) return false

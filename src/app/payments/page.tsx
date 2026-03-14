@@ -12,6 +12,7 @@ import { computePendingEdges } from '@/lib/pending-balances'
 import { fromCents, toCents } from '@/lib/money'
 import { checkRateLimit, RATE_LIMITS } from '@/lib/rate-limit'
 import { usePremium } from '@/hooks/use-premium'
+import { useAuth } from '@/context/AuthContext'
 
 interface GroupRow {
   id: string
@@ -77,6 +78,7 @@ interface PersonPendingSummary {
 export default function Payments() {
   const router = useRouter()
   const { isPremium } = usePremium()
+  const { user, loading: authLoading } = useAuth()
 
   const [payments, setPayments] = useState<Payment[]>([])
   const [filter, setFilter] = useState<'all' | 'paid' | 'pending'>('all')
@@ -93,22 +95,19 @@ export default function Payments() {
   const [chargeTarget, setChargeTarget] = useState<Payment | null>(null)
   const [chargePixKey, setChargePixKey] = useState('')
   const [detailTarget, setDetailTarget] = useState<Payment | null>(null)
+  const runInFlightRef = useRef(false)
+  const rerunRequestedRef = useRef(false)
 
-  const load = useCallback(async (showBlockingLoading: boolean = false) => {
+  const load = useCallback(async (currentUserId: string, showBlockingLoading: boolean = false) => {
+    if (runInFlightRef.current) {
+      rerunRequestedRef.current = true
+      return
+    }
+    runInFlightRef.current = true
     if (showBlockingLoading || !hasLoadedOnceRef.current) {
       setLoading(true)
     }
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-
-      if (!session) {
-        router.replace('/login')
-        return
-      }
-
-      const currentUserId = session.user.id
       setMyId(currentUserId)
       const { data: myProfile } = await supabase
         .from('profiles')
@@ -303,37 +302,55 @@ export default function Payments() {
       setPayments([])
       setLastReminderByPair(new Map())
     } finally {
+      runInFlightRef.current = false
       hasLoadedOnceRef.current = true
       setLoading(false)
+      if (rerunRequestedRef.current) {
+        rerunRequestedRef.current = false
+        void load(currentUserId, false)
+      }
     }
-  }, [router])
+  }, [])
 
   useEffect(() => {
-    load(true)
+    if (authLoading) return
+    if (!user?.id) {
+      router.replace('/login')
+      return
+    }
+
+    void load(user.id, true)
 
     const channel = supabase
       .channel('payments-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, () => {
-        load(false)
+        void load(user.id, false)
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => {
-        load(false)
+        void load(user.id, false)
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'participants' }, () => {
-        load(false)
+        void load(user.id, false)
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'groups' }, () => {
-        load(false)
+        void load(user.id, false)
       })
       .subscribe()
 
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [load])
+  }, [authLoading, load, router, user?.id])
 
   const handleRegisterPayment = useCallback(async (pending: Payment) => {
-    if (!myId || pending.status !== 'pending') return
+    if (!myId) {
+      setFeedback({ type: 'error', text: 'Sessão indisponível. Recarregue e tente novamente.' })
+      return
+    }
+    if (pending.status !== 'pending') {
+      setFeedback({ type: 'error', text: 'Esta pendência já foi resolvida.' })
+      return
+    }
     if (pending.toUserId !== myId) {
       setFeedback({ type: 'error', text: 'Apenas o credor pode marcar como pago.' })
       return
@@ -375,7 +392,7 @@ export default function Payments() {
       type: 'success',
       text: pending.toUserId === myId ? 'Cobrança registrada.' : 'Pagamento registrado.',
     })
-    await load(false)
+    await load(myId, false)
     router.refresh()
     setProcessingPaymentId(null)
   }, [load, myId, router])
