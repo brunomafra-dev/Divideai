@@ -75,6 +75,18 @@ type HomeViewCache = {
 
 let homeViewCache: HomeViewCache | null = null
 
+function shouldRunClientSecurityAudit() {
+  if (typeof window === 'undefined') return false
+
+  if (process.env.NEXT_PUBLIC_ENABLE_CLIENT_SECURITY_AUDIT === 'true') {
+    return true
+  }
+
+  const host = window.location.hostname
+  const isLocalHost = host === 'localhost' || host === '127.0.0.1'
+  return process.env.NODE_ENV === 'development' && isLocalHost
+}
+
 export default function Home() {
   const router = useRouter()
   const { isPremium } = usePremium()
@@ -162,7 +174,7 @@ export default function Home() {
 
         const myId = user.id
 
-        if (!securityAuditRanRef.current) {
+        if (!securityAuditRanRef.current && shouldRunClientSecurityAudit()) {
           securityAuditRanRef.current = true
           const report = await auditDatabaseSecurity(supabase)
           setSecurityReport(report)

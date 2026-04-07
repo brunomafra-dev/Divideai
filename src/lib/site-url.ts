@@ -3,11 +3,24 @@ export function getAuthRedirectUrl(pathname: string = '/auth/callback'): string 
   return `${getCanonicalSiteUrl()}${safePath}`
 }
 
-export function getCanonicalSiteUrl(): string {
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim()
-  if (siteUrl) {
-    return siteUrl.replace(/\/$/, '')
+function normalizePublicUrl(rawUrl: string | undefined | null): string | null {
+  const value = String(rawUrl || '').trim()
+  if (!value) return null
+
+  try {
+    const parsed = new URL(value)
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+      return null
+    }
+    return parsed.origin.replace(/\/$/, '')
+  } catch {
+    return null
   }
+}
+
+export function getCanonicalSiteUrl(): string {
+  const siteUrl = normalizePublicUrl(process.env.NEXT_PUBLIC_SITE_URL)
+  if (siteUrl) return siteUrl
 
   return 'https://splitmateapp.vercel.app'
 }
@@ -25,6 +38,6 @@ export function getAppBaseUrl(): string {
 }
 
 export function buildInviteLink(token: string): string {
-  const safeToken = String(token || '').trim()
+  const safeToken = encodeURIComponent(String(token || '').trim())
   return `${getCanonicalSiteUrl()}/invite/${safeToken}`
 }

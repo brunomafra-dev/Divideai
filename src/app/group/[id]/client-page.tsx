@@ -130,7 +130,36 @@ type GroupPageCacheEntry = {
   currentUserId: string | null
 }
 
+
 const groupPageCache = new Map<string, GroupPageCacheEntry>()
+
+function escapeHtml(value: string) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function sanitizeCsvCell(value: string) {
+  const raw = String(value || '')
+  let escaped = raw.replace(/"/g, '""')
+  if (/^[=+\-@]/.test(raw.trimStart())) {
+    escaped = `'${escaped}`
+  }
+  return `"${escaped}"`
+}
+
+function sanitizeFileName(value: string) {
+  const cleaned = String(value || '')
+    .normalize('NFKD')
+    .replace(/[^a-zA-Z0-9\s_-]/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
+    .toLowerCase()
+  return cleaned || 'grupo'
+}
 
 export default function GroupPage() {
   const params = useParams()
@@ -714,7 +743,7 @@ export default function GroupPage() {
       'participante,total_pago,total_parte,pendente_receber,pendente_pagar,saldo_pendente',
       ...report.participants.map((row) =>
         [
-          `"${row.name.replace(/"/g, '""')}"`,
+          sanitizeCsvCell(row.name),
           row.totalPaid.toFixed(2),
           row.totalShare.toFixed(2),
           row.pendingToReceive.toFixed(2),
@@ -732,7 +761,7 @@ export default function GroupPage() {
     const url = URL.createObjectURL(blob)
     const anchor = document.createElement('a')
     anchor.href = url
-    anchor.download = `SplitMate-resumo-${group.name.replace(/\s+/g, '-').toLowerCase()}.csv`
+    anchor.download = `SplitMate-resumo-${sanitizeFileName(group.name)}.csv`
     document.body.appendChild(anchor)
     anchor.click()
     document.body.removeChild(anchor)
@@ -747,7 +776,7 @@ export default function GroupPage() {
       .map(
         (row) => `
           <tr>
-            <td style="padding:8px;border:1px solid #e5e7eb;">${row.name}</td>
+            <td style="padding:8px;border:1px solid #e5e7eb;">${escapeHtml(row.name)}</td>
             <td style="padding:8px;border:1px solid #e5e7eb;">R$ ${row.totalPaid.toFixed(2)}</td>
             <td style="padding:8px;border:1px solid #e5e7eb;">R$ ${row.totalShare.toFixed(2)}</td>
             <td style="padding:8px;border:1px solid #e5e7eb;color:#16a34a;">R$ ${row.pendingToReceive.toFixed(2)}</td>
@@ -758,17 +787,21 @@ export default function GroupPage() {
       )
       .join('')
 
-    const popup = window.open('', '_blank', 'width=900,height=700')
+    const popup = window.open('', '_blank', 'noopener,noreferrer,width=900,height=700')
     if (!popup) {
       setReportFeedback({ type: 'error', text: 'Bloqueio de popup ativo. Libere popups para exportar PDF.' })
       return
     }
 
+    try {
+      popup.opener = null
+    } catch {}
+
     popup.document.write(`
       <html>
-        <head><title>Resumo financeiro - ${group.name}</title></head>
+        <head><title>Resumo financeiro - ${escapeHtml(group.name)}</title></head>
         <body style="font-family:Arial,sans-serif;padding:24px;">
-          <h1 style="margin:0 0 12px 0;">Resumo financeiro - ${group.name}</h1>
+          <h1 style="margin:0 0 12px 0;">Resumo financeiro - ${escapeHtml(group.name)}</h1>
           <p style="margin:0 0 16px 0;">Total gasto: R$ ${report.totalSpent.toFixed(2)} | Total recebido: R$ ${report.totalSettled.toFixed(2)} | Pendente: R$ ${report.totalPending.toFixed(2)}</p>
           <table style="width:100%;border-collapse:collapse;font-size:13px;">
             <thead>

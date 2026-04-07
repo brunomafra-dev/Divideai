@@ -209,6 +209,14 @@ async function detectMissingColumnsViaRest(supabase: AuditClient, table: string,
 }
 
 export async function auditDatabaseSecurity(supabase: AuditClient): Promise<SecurityAuditReport> {
+  if (typeof window !== 'undefined') {
+    const explicitClientAudit = process.env.NEXT_PUBLIC_ENABLE_CLIENT_SECURITY_AUDIT === 'true'
+    const isLocalDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    if (!explicitClientAudit && !(process.env.NODE_ENV === 'development' && isLocalDev)) {
+      return { safe: true, issues: [] }
+    }
+  }
+
   const issues: SecurityIssue[] = []
 
   const tablesQuery = `
