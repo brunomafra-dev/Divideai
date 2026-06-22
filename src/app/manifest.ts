@@ -13,19 +13,27 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: "#16A34A",
     icons: [
       {
-        src: "/logo/splitmate-icon.png",
+        src: "/logo/splitmate-icon-192.png",
         sizes: "192x192",
         type: "image/png",
+        purpose: "any",
       },
       {
-        src: "/logo/splitmate-icon.png",
+        src: "/logo/splitmate-icon-512.png",
         sizes: "512x512",
         type: "image/png",
+        purpose: "any",
       },
       {
-        src: "/favicon.ico",
-        sizes: "any",
-        type: "image/x-icon",
+        src: "/logo/splitmate-maskable-512.png",
+        sizes: "512x512",
+        type: "image/png",
+        purpose: "maskable",
+      },
+      {
+        src: "/logo/splitmate-icon-48.png",
+        sizes: "48x48",
+        type: "image/png",
       },
     ],
   };

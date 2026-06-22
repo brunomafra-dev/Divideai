@@ -141,7 +141,7 @@ export default function LandingPage() {
     <div className="min-h-screen text-gray-900 bg-[radial-gradient(circle_at_8%_6%,#d1fae5_0%,#ecfdf5_30%,#ffffff_74%)]">
       <header className="sticky top-0 z-30 border-b border-emerald-100/70 bg-white/82 backdrop-blur-md">
         <div className="mx-auto max-w-6xl px-4 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <Link href="/" className="flex items-center gap-3">
+          <Link href="/site" className="flex items-center gap-3">
             <img src="/logo/splitmate-icon.png" alt="SplitMate" className="w-8 h-8 rounded-lg shadow-sm" />
             <span className="font-semibold text-lg tracking-tight">SplitMate</span>
           </Link>

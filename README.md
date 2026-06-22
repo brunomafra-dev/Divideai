@@ -2,9 +2,7 @@
 
 App para divisão de despesas em grupo, com Next.js, TypeScript, Supabase, autenticação e dados persistentes.
 
-Demo atualizada: https://splitmateapp.vercel.app/
-
-> A demo pode ficar temporariamente inativa quando o projeto precisa dividir infraestrutura do plano gratuito do Supabase com outros apps do portfólio.
+Demo ativa: https://splitmateapp.vercel.app/
 
 ## Por que esse projeto existe
 
@@ -104,12 +102,12 @@ npm run start
 - Apps financeiros exigem cuidado com arredondamento, auditoria e integridade.
 - Autenticação e participantes manuais precisam conviver no mesmo domínio.
 - Uma boa experiência mobile reduz fricção em uso social, como viagens e contas em grupo.
-- Documentação clara ajuda a mostrar valor mesmo quando a demo depende de infraestrutura gratuita.
+- Documentação clara ajuda a apresentar o valor do projeto e orientar a execução local.
 
 ## Próximos passos
 
 - Melhorar README com prints reais da interface.
 - Revisar nome do projeto no `package.json`.
 - Adicionar testes automatizados para saldos, divisão e simplificação de dívidas.
-- Refinar demo pública conforme disponibilidade do Supabase.
+- Refinar demo pública e fluxo de onboarding.
 - Evoluir onboarding para grupos e convites.
