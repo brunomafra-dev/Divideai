@@ -1,41 +1,49 @@
+<div align="center">
+
 # SplitMateApp
 
-App para divisão de despesas em grupo, com Next.js, TypeScript, Supabase, autenticação e dados persistentes.
+**App para dividir despesas em grupo com autenticação, participantes, saldos e sugestão de acertos.**
 
-Demo ativa: https://splitmateapp.vercel.app/
+![Next.js](https://img.shields.io/badge/Next.js-111827?style=for-the-badge&logo=nextdotjs&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-111827?style=for-the-badge&logo=typescript&logoColor=60a5fa)
+![Supabase](https://img.shields.io/badge/Supabase-111827?style=for-the-badge&logo=supabase&logoColor=34d399)
+![Capacitor](https://img.shields.io/badge/Capacitor-111827?style=for-the-badge&logo=capacitor&logoColor=60a5fa)
 
-## Por que esse projeto existe
+[Demo](https://splitmateapp.vercel.app/) · [Portfólio](https://www.brunomafra.website/pt)
 
-Dividir contas em grupo costuma virar confusão: alguém paga mais, alguém esquece, alguém não sabe quanto deve. O SplitMateApp foi criado para organizar despesas compartilhadas de forma mais clara.
+</div>
 
-O projeto explora um fluxo full-stack com autenticação, grupos, participantes, despesas, pagamentos e simplificação de dívidas.
+---
 
-## Funcionalidades
+## Descrição do problema
 
-- Cadastro, login e fluxo de autenticação.
-- Criação e gestão de grupos.
-- Participantes manuais e membros autenticados.
-- Registro de despesas em grupo.
-- Divisão de valores e cálculo de saldos.
-- Sugestão de acertos entre participantes.
-- Perfil, configurações e consentimento legal.
-- Estrutura mobile-first e build Android com Capacitor.
-- APK disponível em `public/apk/SplitMate.apk`.
-- Migrações Supabase para segurança, auditoria e consistência financeira.
+Dividir contas em grupo costuma virar ruído: alguém paga mais, alguém esquece uma despesa, alguém não sabe quanto deve e o acerto final fica confuso.
 
-## Stack
+Esse problema aparece em viagens, encontros, casais, repúblicas e qualquer situação em que várias pessoas compartilham gastos ao longo do tempo.
 
-- Next.js
-- React
-- TypeScript
-- Supabase
-- Tailwind CSS
-- Radix UI
-- React Hook Form
-- Zod
-- Capacitor Android
+## Solução proposta
 
-## Arquitetura
+O SplitMateApp organiza o ciclo completo da despesa compartilhada:
+
+- cria grupos e participantes;
+- registra despesas e quem pagou;
+- divide valores entre participantes;
+- calcula saldos pendentes;
+- sugere acertos para reduzir transferências desnecessárias.
+
+O foco é entregar uma experiência mobile-first simples o suficiente para ser usada no momento em que a despesa acontece.
+
+## Stack utilizada
+
+| Camada | Tecnologias |
+| --- | --- |
+| Frontend | Next.js, React, TypeScript, Tailwind CSS |
+| UI | Radix UI, React Hook Form, Zod, Lucide React |
+| Dados | Supabase Auth, tabelas relacionais e migrations |
+| Domínio | Cálculo de saldo, divisão, auditoria financeira e simplificação de dívidas |
+| Mobile | Capacitor Android e APK em `public/apk/` |
+
+## Arquitetura resumida
 
 ```txt
 src/
@@ -63,16 +71,53 @@ supabase/
   migrations/
 public/
   apk/
+  logo/
+android/
 ```
 
-## Decisões técnicas
+## Screenshots
 
-- A lógica financeira fica separada em `src/lib`, para facilitar manutenção e testes futuros.
-- O projeto usa migrations Supabase para evolução de políticas, auditoria e integridade financeira.
-- Existem rotas e páginas duplicadas de `group`/`groups` por compatibilidade de navegação durante evolução do app.
-- Capacitor permite distribuir uma versão Android além da experiência web.
+| Tela | O que demonstrar |
+| --- | --- |
+| Dashboard / grupos | Lista de grupos e entrada rápida no fluxo |
+| Despesa em grupo | Registro de valor, pagador e participantes |
+| Saldos e acertos | Cálculo de pendências e sugestão de pagamentos |
+| Perfil e configurações | Preferências, termos e estado de autenticação |
 
-## Rodando localmente
+> As capturas devem ser adicionadas em `docs/screenshots/` quando houver uma rodada visual final da demo pública.
+
+## Funcionalidades
+
+- Cadastro, login e autenticação com Supabase.
+- Criação e gestão de grupos.
+- Participantes manuais e membros autenticados.
+- Registro de despesas em grupo.
+- Divisão de valores por participante.
+- Cálculo de saldos pendentes.
+- Sugestão de acertos entre participantes.
+- Registro de pagamentos.
+- Perfil, configurações e consentimento legal.
+- Auditoria financeira e estrutura de segurança por migrations.
+- Build Android com Capacitor.
+
+## Roadmap
+
+- Adicionar screenshots reais em `docs/screenshots/`.
+- Adicionar testes automatizados para saldos, divisão e simplificação de dívidas.
+- Refinar onboarding para grupos, convites e participantes.
+- Melhorar a experiência de fechamento de acertos.
+- Revisar nome do projeto no `package.json`.
+- Evoluir distribuição mobile a partir do APK atual.
+
+## Aprendizados
+
+- Apps financeiros exigem cuidado com arredondamento, integridade e auditoria.
+- Participantes manuais e usuários autenticados precisam conviver no mesmo domínio.
+- Simplificar dívidas melhora muito a experiência final do usuário.
+- Uma boa experiência mobile reduz fricção em uso social e compartilhado.
+- Documentação clara ajuda a mostrar valor mesmo quando a demo depende de infraestrutura gratuita.
+
+## Como executar
 
 ```bash
 npm install
@@ -88,26 +133,18 @@ NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 ```
 
-## Scripts
+Scripts úteis:
 
 ```bash
-npm run dev
 npm run build
 npm run build:capacitor
 npm run start
 ```
 
-## Aprendizados
+## Link para Demo
 
-- Apps financeiros exigem cuidado com arredondamento, auditoria e integridade.
-- Autenticação e participantes manuais precisam conviver no mesmo domínio.
-- Uma boa experiência mobile reduz fricção em uso social, como viagens e contas em grupo.
-- Documentação clara ajuda a apresentar o valor do projeto e orientar a execução local.
+https://splitmateapp.vercel.app/
 
-## Próximos passos
+## Link para Portfólio
 
-- Melhorar README com prints reais da interface.
-- Revisar nome do projeto no `package.json`.
-- Adicionar testes automatizados para saldos, divisão e simplificação de dívidas.
-- Refinar demo pública e fluxo de onboarding.
-- Evoluir onboarding para grupos e convites.
+https://www.brunomafra.website/pt
