@@ -1,0 +1,10 @@
+node_modules
+.next
+out
+coverage
+.vercel
+.turbo
+android/.gradle
+android/app/build
+public/apk
+package-lock.json

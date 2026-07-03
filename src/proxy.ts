@@ -13,7 +13,7 @@ const SECURITY_HEADERS: Record<string, string> = {
   'Content-Security-Policy': "base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'",
 }
 
-export async function middleware(_request: NextRequest) {
+export function proxy(_request: NextRequest) {
   const response = NextResponse.next()
 
   Object.entries(SECURITY_HEADERS).forEach(([key, value]) => {

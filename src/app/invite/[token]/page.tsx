@@ -5,6 +5,6 @@ export function generateStaticParams() {
 }
 
 
-export default function Page({ params }: { params: { token: string } }) {
-  return <ClientPage params={params} />
+export default function Page() {
+  return <ClientPage />
 }

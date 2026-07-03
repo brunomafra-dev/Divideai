@@ -4,7 +4,9 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('VariÃ¡veis de ambiente do Supabase nÃ£o configuradas. Verifique NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY')
+  throw new Error(
+    'Variaveis de ambiente do Supabase nao configuradas. Verifique NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY'
+  )
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
@@ -12,7 +14,6 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
-    multiTab: false,
     storage: typeof window !== 'undefined' ? window.localStorage : undefined,
   },
 })

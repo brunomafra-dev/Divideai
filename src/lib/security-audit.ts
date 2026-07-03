@@ -10,7 +10,7 @@ export type SecurityAuditReport = {
 }
 
 type RpcClient = {
-  rpc: (fn: string, args?: Record<string, unknown>) => Promise<{ data: unknown; error: any }>
+  rpc: (fn: string, args?: Record<string, unknown>) => PromiseLike<{ data: unknown; error: any }>
 }
 
 type AuditClient = RpcClient & {

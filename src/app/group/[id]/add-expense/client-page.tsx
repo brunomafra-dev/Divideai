@@ -101,7 +101,7 @@ export default function AddExpense() {
         .map((row) => String(row.user_id || '').trim())
         .filter(Boolean)
 
-      let profileMap = new Map<string, { username?: string; full_name?: string; avatar_key?: string; is_premium?: boolean }>()
+      const profileMap = new Map<string, { username?: string; full_name?: string; avatar_key?: string; is_premium?: boolean }>()
       if (participantIds.length > 0) {
         const { data: profileRows, error: profilesError } = await supabase
           .from('profiles')

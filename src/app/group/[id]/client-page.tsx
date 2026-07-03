@@ -283,7 +283,7 @@ export default function GroupPage() {
       .maybeSingle()
     setShowMyBalance(Boolean(myProfile?.privacy_show_balance ?? true))
 
-    let profileMap = new Map<string, { username?: string; full_name?: string; privacy_profile_visible?: boolean; avatar_key?: string; is_premium?: boolean }>()
+    const profileMap = new Map<string, { username?: string; full_name?: string; privacy_profile_visible?: boolean; avatar_key?: string; is_premium?: boolean }>()
     if (participantUsers.length > 0) {
       const { data: profileRows, error: profilesError } = await supabase
         .from('profiles')
@@ -365,12 +365,14 @@ export default function GroupPage() {
       console.error('group.payments-load-error', payError)
     }
 
-    let { data: myRoleRow, error: myRoleError } = await supabase
+    const myRoleAttempt = await supabase
       .from('participants')
       .select('role')
       .eq('group_id', groupId)
       .eq('user_id', currentUserId)
       .maybeSingle()
+    let myRoleRow = myRoleAttempt.data
+    const myRoleError = myRoleAttempt.error
 
     if (myRoleError) {
       console.error('group.role-load-error', myRoleError)

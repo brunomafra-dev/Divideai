@@ -6,11 +6,6 @@ const nextConfig: NextConfig = {
   ...(isCapacitorExport ? { output: "export" } : {}),
   devIndicators: false,
 
-  // OK no Next 16
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-
   images: {
     unoptimized: isCapacitorExport,
     remotePatterns: [
@@ -81,8 +76,6 @@ const nextConfig: NextConfig = {
           { key: "Access-Control-Allow-Origin", value: "*" },
           { key: "Access-Control-Allow-Methods", value: "GET, POST, PUT, DELETE, OPTIONS, PATCH" },
           { key: "Access-Control-Allow-Headers", value: "Content-Type, Authorization, X-Requested-With, Accept" },
-          // ⚠️ Se você usa Origin: *, não use Credentials true.
-          // Se precisar credentials, tem que setar um origin específico.
           { key: "Access-Control-Allow-Credentials", value: "false" },
         ],
       },
