@@ -15,7 +15,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
   const isInviteRoute = pathname.startsWith('/invite/')
   const isLegalPublicRoute = pathname === '/privacy' || pathname === '/terms'
-  const isMarketingRoute = pathname === '/' || pathname === '/download' || pathname === '/ios' || pathname === '/android'
+  const isMarketingRoute = pathname === '/' || pathname === '/site' || pathname === '/download' || pathname === '/ios' || pathname === '/android'
   const isResetPasswordRoute = pathname === '/reset-password'
   const isAuthRoute =
     pathname === '/login' ||
